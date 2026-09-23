@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+:root {
+  /* ========================================================
+     MUDRA COLOR SYSTEM — STRICTLY ZERO GRADIENTS
+     ======================================================== */
+  --mudra-bg: #110B0B;
+  --mudra-gold: #E3D28A;
+  --mudra-fire: #E02E0B;
+  --mudra-dark-red: #5A0E0B;
+  --mudra-highlight: #EE8814;
+
+  /* Centralized Typography */
+  --font-display-serif: var(--font-cinzel), Georgia, "Times New Roman", serif;
+  --font-body-sans: var(--font-outfit), system-ui, -apple-system, sans-serif;
+  --font-tech-mono: var(--font-space-mono), ui-monospace, SFMono-Regular, monospace;
+}
+
+@theme inline {
+  --color-mudra-bg: var(--mudra-bg);
+  --color-mudra-gold: var(--mudra-gold);
+  --color-mudra-fire: var(--mudra-fire);
+  --color-mudra-dark-red: var(--mudra-dark-red);
+  --color-mudra-highlight: var(--mudra-highlight);
+
+  --font-display: var(--font-display-serif);
+  --font-body: var(--font-body-sans);
+  --font-mono: var(--font-tech-mono);
+}
+
+/* Base Styles */
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background-color: #110B0B;
+  color: #E3D28A;
+  font-family: var(--font-body-sans);
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #110B0B;
+  color: #E3D28A;
+  min-height: 100vh;
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* Minimal Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #110B0B;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #5A0E0B;
+  border: 1px solid #E3D28A;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #E02E0B;
+}
