@@ -29,6 +29,11 @@ const spaceMono = Space_Mono({
 export const metadata: Metadata = {
   title: "MUDRA 2026 — Kerala Cultural Arts Competition",
   description: "Official portal for MUDRA 2026 Kerala Cultural Arts Competition.",
+  icons: {
+    icon: "/images/mudra-logo.png",
+    shortcut: "/images/mudra-logo.png",
+    apple: "/images/mudra-logo.png",
+  },
 };
 
 export default function RootLayout({
@@ -43,8 +48,10 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-[#110B0B] text-[#E3D28A]">
         <LoadingScreen />
+        {/* Navbar is fixed/floating — positioned via CSS */}
         <Navbar />
-        <main className="flex-1 flex flex-col w-full">
+        {/* pt-24 clears the fixed floating navbar */}
+        <main className="flex-1 flex flex-col w-full pt-24">
           {children}
         </main>
         <Footer />

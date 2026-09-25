@@ -10,8 +10,8 @@ export default function HomePage() {
 
   return (
     <div className="flex flex-col w-full">
-      {/* 1. HERO SECTION */}
-      <section className="min-h-[75vh] flex flex-col items-center justify-center text-center px-6 sm:px-8 py-16 relative border-b border-[#E3D28A]/30">
+      {/* 1. HERO SECTION — full viewport page */}
+      <section className="h-[calc(100vh-96px)] flex flex-col items-center justify-center text-center px-6 sm:px-8 relative border-b border-[#E3D28A]/30">
         {/* Subtle Padayani Flame Motif */}
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
