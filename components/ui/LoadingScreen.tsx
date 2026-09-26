@@ -13,24 +13,22 @@ const MUDRA_IMAGES = [
   "/images/mudras/mudra-6.png?v=2",
 ];
 
-// Generate randomized rapid sequence of mudras without immediate consecutive repeats
-function generateRandomSequence(count: number = 10): string[] {
-  const sequence: string[] = [];
-  let lastIndex = -1;
-  for (let i = 0; i < count; i++) {
-    let nextIndex = Math.floor(Math.random() * MUDRA_IMAGES.length);
-    while (nextIndex === lastIndex && MUDRA_IMAGES.length > 1) {
-      nextIndex = Math.floor(Math.random() * MUDRA_IMAGES.length);
-    }
-    sequence.push(MUDRA_IMAGES[nextIndex]);
-    lastIndex = nextIndex;
-  }
-  return sequence;
-}
+// Curated rapid sequence of mudras without immediate consecutive repeats
+const MUDRA_SEQUENCE = [
+  MUDRA_IMAGES[0],
+  MUDRA_IMAGES[2],
+  MUDRA_IMAGES[4],
+  MUDRA_IMAGES[1],
+  MUDRA_IMAGES[5],
+  MUDRA_IMAGES[3],
+  MUDRA_IMAGES[0],
+  MUDRA_IMAGES[4],
+  MUDRA_IMAGES[2],
+  MUDRA_IMAGES[5],
+];
 
 export const LoadingScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
-  const [sequence, setSequence] = useState<string[]>([]);
   const [step, setStep] = useState(0);
   const shouldReduceMotion = useReducedMotion();
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -42,10 +40,6 @@ export const LoadingScreen: React.FC = () => {
       img.src = src;
     });
 
-    // 2. Generate rapid randomized sequence
-    const seq = generateRandomSequence(10);
-    setSequence(seq);
-
     // Prevent background scrolling while loading screen is active
     document.body.style.overflow = "hidden";
 
@@ -56,12 +50,10 @@ export const LoadingScreen: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (sequence.length === 0) return;
-
-    // Slower, more elegant pace: ~520ms per mudra
+    // Pace: ~220ms per mudra
     const speed = shouldReduceMotion ? 300 : 220;
 
-    if (step < sequence.length - 1) {
+    if (step < MUDRA_SEQUENCE.length - 1) {
       timerRef.current = setTimeout(() => {
         setStep((prev) => prev + 1);
       }, speed);
@@ -76,9 +68,9 @@ export const LoadingScreen: React.FC = () => {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [step, sequence, shouldReduceMotion]);
+  }, [step, shouldReduceMotion]);
 
-  const activeImage = sequence[step] || MUDRA_IMAGES[0];
+  const activeImage = MUDRA_SEQUENCE[step] || MUDRA_IMAGES[0];
 
   return (
     <AnimatePresence>
@@ -120,11 +112,12 @@ export const LoadingScreen: React.FC = () => {
               <Image
                 src={activeImage}
                 alt="Kerala Mudra"
-                fill
-                sizes="(max-width: 640px) 192px, (max-width: 768px) 224px, 256px"
+                width={500}
+                height={532}
                 priority
+                loading="eager"
                 unoptimized
-                className="object-contain pointer-events-none select-none"
+                className="w-full h-full object-contain pointer-events-none select-none"
               />
             </motion.div>
           </div>
