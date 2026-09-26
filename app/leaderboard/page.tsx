@@ -10,7 +10,7 @@ export default function LeaderboardPage() {
   const maxPoints = Math.max(...standings.map((s) => s.totalPoints), 1);
 
   return (
-    <div className="max-w-4xl mx-auto px-6 sm:px-8 py-12 space-y-12">
+    <div className="max-w-4xl mx-auto px-6 sm:px-8 pt-28 pb-16 space-y-12">
       {/* Title */}
       <div className="space-y-1.5">
         <h1 className="font-display font-black text-4xl sm:text-5xl text-[#E3D28A] tracking-wider uppercase">

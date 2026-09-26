@@ -32,7 +32,7 @@ export default function TeamPage() {
   };
 
   return (
-    <div className="max-w-md mx-auto px-6 sm:px-8 py-16 space-y-8">
+    <div className="max-w-md mx-auto px-6 sm:px-8 pt-28 pb-16 space-y-8">
       {/* Title */}
       <div className="space-y-1.5 text-center">
         <h1 className="font-display font-black text-3xl sm:text-4xl text-[#E3D28A] tracking-wider uppercase">

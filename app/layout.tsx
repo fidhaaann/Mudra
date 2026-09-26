@@ -1,9 +1,17 @@
 import type { Metadata } from "next";
+import localFont from "next/font/local";
 import { Cinzel, Outfit, Space_Mono } from "next/font/google";
 import "./globals.css";
 import { Navbar } from "@/components/navigation/Navbar";
 import { Footer } from "@/components/navigation/Footer";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
+
+const wardrum = localFont({
+  src: "./fonts/Wardrum-Bold.otf",
+  variable: "--font-wardrum",
+  display: "swap",
+  weight: "700",
+});
 
 const cinzel = Cinzel({
   variable: "--font-cinzel",
@@ -44,14 +52,14 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${cinzel.variable} ${outfit.variable} ${spaceMono.variable} h-full antialiased`}
+      data-scroll-behavior="smooth"
+      className={`${wardrum.variable} ${cinzel.variable} ${outfit.variable} ${spaceMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-[#110B0B] text-[#E3D28A]">
         <LoadingScreen />
         {/* Navbar is fixed/floating — positioned via CSS */}
         <Navbar />
-        {/* pt-24 clears the fixed floating navbar */}
-        <main className="flex-1 flex flex-col w-full pt-24">
+        <main className="flex-1 flex flex-col w-full">
           {children}
         </main>
         <Footer />

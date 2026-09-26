@@ -11,7 +11,7 @@
   --mudra-highlight: #EE8814;
 
   /* Centralized Typography */
-  --font-display-serif: var(--font-cinzel), Georgia, "Times New Roman", serif;
+  --font-display-serif: var(--font-wardrum), var(--font-cinzel), Georgia, "Times New Roman", serif;
   --font-body-sans: var(--font-outfit), system-ui, -apple-system, sans-serif;
   --font-tech-mono: var(--font-space-mono), ui-monospace, SFMono-Regular, monospace;
 }
@@ -65,4 +65,19 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #E02E0B;
+}
+
+/* Ripple Distortion Canvas Container */
+.ripple-distortion {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+}
+
+.ripple-distortion canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
 }

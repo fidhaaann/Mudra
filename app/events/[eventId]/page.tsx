@@ -26,7 +26,7 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
   const results = RECORDED_RESULTS[event.id];
 
   return (
-    <div className="max-w-3xl mx-auto px-6 sm:px-8 py-12 space-y-8">
+    <div className="max-w-3xl mx-auto px-6 sm:px-8 pt-28 pb-16 space-y-8">
       {/* Back Link */}
       <Link
         href="/events"

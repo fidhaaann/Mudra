@@ -20,7 +20,7 @@ export default function EventsPage() {
   }, [selectedCategory, searchQuery]);
 
   return (
-    <div className="max-w-6xl mx-auto px-6 sm:px-8 py-12 space-y-10">
+    <div className="max-w-6xl mx-auto px-6 sm:px-8 pt-28 pb-16 space-y-10">
       {/* Top Header */}
       <div className="space-y-4">
         <h1 className="font-display font-black text-4xl sm:text-5xl text-[#E3D28A] tracking-wider uppercase">
