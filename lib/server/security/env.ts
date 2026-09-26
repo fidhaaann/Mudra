@@ -12,5 +12,6 @@ export function getGoogleEnvVars() {
     // Private keys in env vars might have escaped newlines
     privateKey: requireEnvVar('GOOGLE_PRIVATE_KEY').replace(/\\n/g, '\n'),
     spreadsheetId: requireEnvVar('GOOGLE_SPREADSHEET_ID'),
+    competitionSpreadsheetId: requireEnvVar('GOOGLE_COMPETITION_SPREADSHEET_ID'),
   };
 }
