@@ -282,7 +282,7 @@ export default function HomePage() {
         </div>}
 
         {/* Points Breakdown Table */}
-        {!leaderboardLoading && !leaderboardError && <div className="border border-[#E3D28A]/40 bg-[#110B0B] overflow-x-auto min-w-0 shadow-xl shadow-black/60">
+        {!leaderboardLoading && !leaderboardError && <div className="home-standings-table-scroll border border-[#E3D28A]/40 bg-[#110B0B] overflow-x-auto overflow-y-hidden min-w-0 shadow-xl shadow-black/60">
           <table className="min-w-full text-left font-body text-xs sm:text-sm border-collapse">
             <thead>
               <tr className="relative border-b border-[#E3D28A]/30 font-display text-[11px] sm:text-xs tracking-wider text-[#E3D28A]/70 uppercase">

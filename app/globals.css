@@ -37,6 +37,8 @@ html {
   background-color: #110B0B;
   color: #E3D28A;
   font-family: var(--font-body-sans);
+  overscroll-behavior: none;
+  overflow-x: clip;
 }
 
 .team-name-glow {
@@ -56,6 +58,13 @@ body {
   min-height: 100vh;
   min-height: 100dvh;
   position: relative;
+  overscroll-behavior: none;
+  overflow-x: clip;
+}
+
+.home-standings-table-scroll {
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .ripple-distortion {

@@ -60,7 +60,7 @@ export default function RootLayout({
         <LoadingScreen />
         {/* Navbar is fixed/floating — positioned via CSS */}
         <Navbar />
-        <div className="relative isolate flex min-h-full flex-1 flex-col overflow-hidden">
+        <div className="relative isolate flex min-h-full min-w-0 flex-1 flex-col">
           <DitherGridBackground contained startAfterHero />
           <main className="relative z-1 flex-1 flex flex-col w-full">
             {children}
