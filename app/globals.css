@@ -54,7 +54,23 @@ body {
   background-color: #110B0B;
   color: #E3D28A;
   min-height: 100vh;
+  min-height: 100dvh;
   position: relative;
+}
+
+.ripple-distortion {
+  touch-action: pan-y;
+}
+
+.glass-surface {
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .glass-surface {
+    background-color: rgb(17 11 11 / 0.95);
+  }
 }
 
 /* Minimal Custom Scrollbar */

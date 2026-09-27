@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, CSSProperties } from "react";
+import { useEffect, useRef, useState, CSSProperties } from "react";
 import { Renderer, Program, Mesh, Geometry, Triangle, Texture, RenderTarget } from "ogl";
 
 const MAX_WAVES = 100;
@@ -200,6 +200,7 @@ const RippleDistortion: React.FC<RippleDistortionProps> = ({
   style,
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
+  const [fallback, setFallback] = useState(false);
   const configRef = useRef({ brushSize, spread, fade, spacing, clickStrength, trigger, enabled });
   const uniformsRef = useRef<{
     wave: { uRings: { value: number } };
@@ -217,11 +218,25 @@ const RippleDistortion: React.FC<RippleDistortionProps> = ({
       window.matchMedia &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    const renderer = new Renderer({
-      alpha: false,
-      antialias: false,
-      dpr: Math.min(window.devicePixelRatio || 1, 2),
-    });
+    let renderer: Renderer;
+    try {
+      const probe = document.createElement("canvas");
+      const supported =
+        Boolean(probe.getContext("webgl")) ||
+        Boolean(probe.getContext("experimental-webgl"));
+      if (!supported) {
+        queueMicrotask(() => setFallback(true));
+        return;
+      }
+      renderer = new Renderer({
+        alpha: false,
+        antialias: false,
+        dpr: Math.min(window.devicePixelRatio || 1, 2),
+      });
+    } catch {
+      queueMicrotask(() => setFallback(true));
+      return;
+    }
     const gl = renderer.gl;
     gl.clearColor(0, 0, 0, 1);
     const canvas = gl.canvas as HTMLCanvasElement;
@@ -247,6 +262,9 @@ const RippleDistortion: React.FC<RippleDistortionProps> = ({
       if (disposed) return;
       imageTexture.image = image;
       compositeUniforms.uTextureSize.value = [image.naturalWidth || 1, image.naturalHeight || 1];
+    };
+    image.onerror = () => {
+      if (!disposed) setFallback(true);
     };
     image.src = src;
 
@@ -391,8 +409,8 @@ const RippleDistortion: React.FC<RippleDistortionProps> = ({
       setNewWave(point[0], point[1], Math.max(1, cfg.clickStrength));
     };
 
-    window.addEventListener("pointermove", onMove, { passive: true });
-    window.addEventListener("pointerdown", onDown, { passive: true });
+    mount.addEventListener("pointermove", onMove, { passive: true });
+    mount.addEventListener("pointerdown", onDown, { passive: true });
 
     let raf = 0;
     let previousTime = 0;
@@ -436,8 +454,8 @@ const RippleDistortion: React.FC<RippleDistortionProps> = ({
       disposed = true;
       cancelAnimationFrame(raf);
       ro.disconnect();
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerdown", onDown);
+      mount.removeEventListener("pointermove", onMove);
+      mount.removeEventListener("pointerdown", onDown);
       uniformsRef.current = null;
       if (canvas.parentNode === mount) mount.removeChild(canvas);
       const ext = gl.getExtension("WEBGL_lose_context");
@@ -460,7 +478,24 @@ const RippleDistortion: React.FC<RippleDistortionProps> = ({
     (u.composite.uTint as { value: [number, number, number] }).value = hexToRGB(tint);
   }, [rings, strength, swirl, dispersion, glint, tintAmount, grayscale, highlightColor, tint]);
 
-  return <div ref={mountRef} aria-hidden="true" className={`ripple-distortion ${className}`.trim()} style={style} />;
+  return (
+    <div
+      ref={mountRef}
+      aria-hidden="true"
+      className={`ripple-distortion ${className}`.trim()}
+      style={style}
+    >
+      {fallback && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          alt=""
+          aria-hidden="true"
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      )}
+    </div>
+  );
 };
 
 export default RippleDistortion;

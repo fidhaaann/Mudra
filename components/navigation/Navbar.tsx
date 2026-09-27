@@ -45,7 +45,7 @@ export const Navbar: React.FC = () => {
       transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
       className="fixed top-4 inset-x-0 z-50 w-full px-4 sm:px-6 flex justify-center pointer-events-none"
     >
-      <div className="relative pointer-events-auto flex items-center justify-between gap-4 sm:gap-8 bg-[#110B0B]/85 backdrop-blur-md border border-[#E3D28A]/25 hover:border-[#E3D28A]/40 transition-colors shadow-2xl shadow-black/80 rounded-full px-4 py-2 sm:px-6 sm:py-2.5 max-w-4xl w-full sm:w-auto">
+      <div className="glass-surface relative pointer-events-auto flex items-center justify-between gap-4 sm:gap-8 bg-[#110B0B]/85 backdrop-blur-md border border-[#E3D28A]/25 hover:border-[#E3D28A]/40 transition-colors shadow-2xl shadow-black/80 rounded-full px-4 py-2 sm:px-6 sm:py-2.5 max-w-4xl w-full sm:w-auto">
         {/* MUDRA Official Logo */}
         <Link href="/" className="group flex items-center py-0.5 shrink-0">
           <Image

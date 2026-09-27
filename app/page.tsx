@@ -6,10 +6,10 @@ import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { calculateTeamStandings } from "@/lib/scoring";
 import FadeContent from "@/components/ui/FadeContent";
 import { NeonDither } from "@/components/ui/neon-dither";
 import { getTeamColor } from "@/lib/team-colors";
+import { LeaderboardResponse, TeamLeaderboardEntry } from "@/types/leaderboard";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -19,8 +19,49 @@ const RippleDistortion = dynamic(
 );
 
 export default function HomePage() {
-  const standings = calculateTeamStandings();
-  const hasResults = standings.some((s) => s.totalPoints > 0);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardResponse | null>(null);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(true);
+  const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
+
+  const loadLeaderboard = async () => {
+    try {
+      setLeaderboardLoading(true);
+      setLeaderboardError(null);
+      const response = await fetch("/api/leaderboard");
+      if (!response.ok) throw new Error("Unable to load live standings.");
+      setLeaderboard(await response.json() as LeaderboardResponse);
+    } catch (error) {
+      setLeaderboardError(error instanceof Error ? error.message : "Unable to load live standings.");
+    } finally {
+      setLeaderboardLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    let ignore = false;
+    async function fetchLeaderboard() {
+      try {
+        const response = await fetch("/api/leaderboard");
+        if (!response.ok) throw new Error("Unable to load live standings.");
+        const data = await response.json() as LeaderboardResponse;
+        if (!ignore) {
+          setLeaderboard(data);
+          setLeaderboardError(null);
+        }
+      } catch (error) {
+        if (!ignore) {
+          setLeaderboardError(error instanceof Error ? error.message : "Unable to load live standings.");
+        }
+      } finally {
+        if (!ignore) setLeaderboardLoading(false);
+      }
+    }
+    fetchLeaderboard();
+    return () => { ignore = true; };
+  }, []);
+
+  const standings: TeamLeaderboardEntry[] = leaderboard?.teams ?? [];
+  const hasResults = (leaderboard?.completedEventCount ?? 0) > 0;
 
   // ── FadeContent trigger ──────────────────────────────────────────────────
   const [heroReady, setHeroReady] = useState(false);
@@ -186,10 +227,41 @@ export default function HomePage() {
         </div>
 
         {/* 4 Team Score Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {leaderboardLoading && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4" aria-label="Loading standings">
+            {[0, 1, 2, 3].map((idx) => (
+              <div
+                key={idx}
+                className="border border-[#E3D28A]/40 bg-[#110B0B] p-3 sm:p-5 text-center space-y-3 relative shadow-lg shadow-black/50 animate-pulse"
+              >
+                <div className="h-3 w-16 mx-auto bg-[#E02E0B]/20" />
+                <div className="h-6 w-20 mx-auto bg-[#E3D28A]/10" />
+                <div className="border-t border-[#E3D28A]/25 pt-3">
+                  <div className="h-10 w-14 mx-auto bg-[#E3D28A]/10" />
+                  <div className="h-2 w-20 mx-auto mt-2 bg-[#E3D28A]/10" />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!leaderboardLoading && leaderboardError && (
+          <div className="border border-[#E02E0B]/40 bg-[#5A0E0B]/10 p-6 text-center space-y-3">
+            <p className="font-body text-xs sm:text-sm text-[#E3D28A]/80">{leaderboardError}</p>
+            <button
+              type="button"
+              onClick={loadLeaderboard}
+              className="inline-flex px-4 py-2 bg-[#E02E0B] text-[#E3D28A] font-display text-xs uppercase tracking-wider font-bold hover:bg-[#941108] transition-colors"
+            >
+              TRY AGAIN
+            </button>
+          </div>
+        )}
+
+        {!leaderboardLoading && !leaderboardError && <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {standings.map((standing, idx) => (
             <motion.div
-              key={standing.team.id}
+              key={standing.teamId}
               initial={{ opacity: 0, y: 15 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
@@ -198,14 +270,14 @@ export default function HomePage() {
             >
               <div className="relative z-10 space-y-3">
                 <div className="font-display text-[10px] sm:text-xs tracking-widest text-[#E02E0B] uppercase font-bold">
-                  {hasResults ? `RANK 0${standing.position}` : `TEAM 0${idx + 1}`}
+                  {hasResults ? `RANK ${standing.rank}` : `TEAM 0${idx + 1}`}
                 </div>
 
                 <h3
                   className="font-display font-black text-lg sm:text-xl tracking-wider"
-                  style={{ color: getTeamColor(standing.team.id) }}
+                  style={{ color: getTeamColor(standing.teamId) }}
                 >
-                  {standing.team.name}
+                  {standing.teamName}
                 </h3>
 
                 <div className="border-t border-[#E3D28A]/25 pt-3">
@@ -219,10 +291,10 @@ export default function HomePage() {
               </div>
             </motion.div>
           ))}
-        </div>
+        </div>}
 
         {/* Points Breakdown Table */}
-        <div className="border border-[#E3D28A]/40 bg-[#110B0B] overflow-x-auto min-w-0 shadow-xl shadow-black/60">
+        {!leaderboardLoading && !leaderboardError && <div className="border border-[#E3D28A]/40 bg-[#110B0B] overflow-x-auto min-w-0 shadow-xl shadow-black/60">
           <table className="min-w-full text-left font-body text-xs sm:text-sm border-collapse">
             <thead>
               <tr className="relative border-b border-[#E3D28A]/30 font-display text-[11px] sm:text-xs tracking-wider text-[#E3D28A]/70 uppercase">
@@ -243,32 +315,32 @@ export default function HomePage() {
             </thead>
             <tbody className="divide-y divide-[#E3D28A]/15 font-body">
               {standings.map((standing) => (
-                <tr key={standing.team.id} className="relative hover:bg-[#5A0E0B]/20 transition-colors">
+                <tr key={standing.teamId} className="relative hover:bg-[#5A0E0B]/20 transition-colors">
                   <td
                     colSpan={6}
                     aria-hidden="true"
                     className="absolute inset-0 block p-0 pointer-events-none"
                   >
                     <NeonDither
-                      color={getTeamColor(standing.team.id)}
+                      color={getTeamColor(standing.teamId)}
                       intensity={0.4}
                       opacity={0.2}
                     />
                   </td>
                   <td className="relative py-3 px-3 sm:py-4 sm:px-5 font-display font-bold text-[#FFF7E6] whitespace-nowrap">
                     <span className="relative z-10">
-                      {hasResults ? `0${standing.position}` : "—"}
+                      {hasResults ? standing.rank : "—"}
                     </span>
                   </td>
                   <td
                     className="relative py-3 px-3 sm:py-4 sm:px-5 font-display font-bold tracking-wider text-sm sm:text-base whitespace-nowrap"
-                    style={{ color: getTeamColor(standing.team.id) }}
+                    style={{ color: getTeamColor(standing.teamId) }}
                   >
                     <span
                       className="relative z-10 inline-block team-name-glow"
-                      style={{ "--team-glow": getTeamColor(standing.team.id) } as React.CSSProperties}
+                      style={{ "--team-glow": getTeamColor(standing.teamId) } as React.CSSProperties}
                     >
-                      {standing.team.name}
+                      {standing.teamName}
                     </span>
                   </td>
                   <td className="relative py-3 px-3 sm:py-4 sm:px-5 text-right font-display font-bold text-[#FFF7E6] text-base sm:text-lg whitespace-nowrap">
@@ -278,24 +350,24 @@ export default function HomePage() {
                   </td>
                   <td className="relative py-3 px-3 sm:py-4 sm:px-5 text-right text-[#FFF7E6]/90 whitespace-nowrap">
                     <span className="relative z-10">
-                      {hasResults ? standing.firstCount : "—"}
+                      {hasResults ? standing.firstPlaceCount : "—"}
                     </span>
                   </td>
                   <td className="relative py-3 px-3 sm:py-4 sm:px-5 text-right text-[#FFF7E6]/90 whitespace-nowrap">
                     <span className="relative z-10">
-                      {hasResults ? standing.secondCount : "—"}
+                      {hasResults ? standing.secondPlaceCount : "—"}
                     </span>
                   </td>
                   <td className="relative py-3 px-3 sm:py-4 sm:px-5 text-right text-[#FFF7E6]/90 whitespace-nowrap">
                     <span className="relative z-10">
-                      {hasResults ? standing.thirdCount : "—"}
+                      {hasResults ? standing.thirdPlaceCount : "—"}
                     </span>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        </div>}
 
         {!hasResults && (
           <p className="text-center font-body text-xs text-[#E3D28A]/50 italic">

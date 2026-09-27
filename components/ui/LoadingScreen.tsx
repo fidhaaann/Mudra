@@ -149,12 +149,14 @@ export const LoadingScreen: React.FC = () => {
   const [visible, setVisible] = useState(true);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const previousOverflowRef = useRef("");
 
   // Progress derived from step — no extra state
   const barProgress = useMemo(() => step / LAST_STEP, [step]);
 
   // ── batch-decode all 6 images ─────────────────────────────────────────────
   useEffect(() => {
+    previousOverflowRef.current = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     let cancelled = false;
 
@@ -164,7 +166,7 @@ export const LoadingScreen: React.FC = () => {
 
     return () => {
       cancelled = true;
-      document.body.style.overflow = "";
+      document.body.style.overflow = previousOverflowRef.current;
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, []);
@@ -203,7 +205,7 @@ export const LoadingScreen: React.FC = () => {
   // overlay gone and hero visible.
   const beginExit = useCallback(() => {
     setVisible(false);
-    document.body.style.overflow = "";
+    document.body.style.overflow = previousOverflowRef.current;
     window.dispatchEvent(new CustomEvent("mudra:loading-done"));
   }, []);
 

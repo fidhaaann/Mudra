@@ -26,8 +26,19 @@
 import assert from "node:assert/strict";
 import { POINT_RULES, getPointsForRank } from "../data/pointRules";
 import { officialPoints, calculateTeamStandings } from "../lib/scoring";
+import { buildPublishedEventResult } from "../lib/server/google/competition";
 import { EVENTS } from "../data/events";
 import { TEAMS } from "../data/teams";
+import {
+  calculateCalculatedLeaderboard,
+  calculateEffectiveLeaderboard,
+  calculatedRowsToSheetValues,
+  synchronizeCalculatedRows,
+  CALCULATED_WRITE_RANGE,
+} from "../lib/server/google/leaderboard";
+import type { CalculatedLeaderboardRow, ManualLeaderboardRow } from "../types/leaderboard";
+import type { Event as CompetitionEvent } from "../types/event";
+import type { EventResult as CompetitionEventResult } from "../types/result";
 
 // ─── tiny helpers ─────────────────────────────────────────────────────────────
 
@@ -163,6 +174,49 @@ test("officialPoints('offstage', 3) = 3",  () => assert.equal(officialPoints("of
 test("officialPoints ignores sheet value", () => {
   // sheet might store 999, but official function doesn't accept that param
   assert.equal(officialPoints("solo", 1), 10);
+});
+
+test("event result scoring ignores volunteer POINTS values", () => {
+  const volunteerPoints = 999;
+  const officialPointsForPlacement = getPointsForRank("solo", 1);
+  assert.notEqual(officialPointsForPlacement, volunteerPoints);
+  assert.equal(officialPointsForPlacement, 10);
+});
+
+test("published finished results calculate all placement points and ignore sheet POINTS", () => {
+  const event: CompetitionEvent = {
+    id: "finished-solo",
+    name: "Finished Solo",
+    category: "on-stage",
+    participantType: "solo",
+    pointsCategory: "solo",
+    status: "completed",
+  };
+  const result = buildPublishedEventResult(event, [
+    { placement: 1, participantOrTeamName: "Winner", teamId: "raaga", pointsAwarded: 999 },
+    { placement: 2, participantOrTeamName: "Runner-up", teamId: "agni", pointsAwarded: 999 },
+    { placement: 3, participantOrTeamName: "Third", teamId: "tarang", pointsAwarded: 999 },
+  ]);
+  assert.deepEqual(result?.placements.map((placement) => placement.pointsAwarded), [10, 7, 5]);
+});
+
+test("upcoming and live events publish no completed results", () => {
+  const placements: PodiumPlacement[] = [
+    { placement: 1, participantOrTeamName: "Winner", teamId: "raaga", pointsAwarded: 999 },
+  ];
+  const baseEvent: CompetitionEvent = {
+    id: "event",
+    name: "Event",
+    category: "on-stage",
+    participantType: "solo",
+    pointsCategory: "solo",
+    status: "upcoming",
+  };
+  assert.equal(buildPublishedEventResult(baseEvent, placements), null);
+  assert.equal(
+    buildPublishedEventResult({ ...baseEvent, status: "live" }, placements),
+    null
+  );
 });
 
 // ─── SECTION 4: Painting Relay ───────────────────────────────────────────────
@@ -535,6 +589,242 @@ test("all zero → ranks 1/1/1/1", () => {
   assert.equal(ranks.agni,   1);
   assert.equal(ranks.tarang, 1);
   assert.equal(ranks.utsav,  1);
+});
+
+// ─── SECTION 12: CALCULATED leaderboard rows ─────────────────────────────────
+
+section("12. CALCULATED leaderboard rows");
+
+function calculatedEvent(
+  id: string,
+  pointsCategory: CompetitionEvent["pointsCategory"],
+  status: "completed" | "upcoming" | "live"
+): CompetitionEvent {
+  return {
+    id,
+    name: id,
+    category: pointsCategory === "offstage" ? "off-stage" : "on-stage",
+    participantType: pointsCategory === "group" ? "group" : pointsCategory === "duo" ? "duo" : "solo",
+    pointsCategory,
+    status,
+  };
+}
+
+function calculatedResult(
+  eventId: string,
+  teamId: TeamId,
+  placement: 1 | 2 | 3,
+  pointsAwarded = 999
+): CompetitionEventResult {
+  return {
+    eventId,
+    placements: [{ teamId, placement, participantOrTeamName: teamId, pointsAwarded }],
+    isDemoData: false,
+  };
+}
+
+test("finished group, duo, solo, and off-stage events use official points", () => {
+  const rows = calculateCalculatedLeaderboard(
+    [
+      calculatedEvent("group", "group", "completed"),
+      calculatedEvent("duo", "duo", "completed"),
+      calculatedEvent("solo", "solo", "completed"),
+      calculatedEvent("offstage", "offstage", "completed"),
+    ],
+    [
+      calculatedResult("group", "raaga", 1),
+      calculatedResult("duo", "agni", 2),
+      calculatedResult("solo", "tarang", 3),
+      calculatedResult("offstage", "utsav", 1),
+    ]
+  );
+  assert.deepEqual(
+    Object.fromEntries(rows.map((row) => [row.team, row.totalPoints])),
+    { raaga: 20, agni: 8, tarang: 5, utsav: 8 }
+  );
+});
+
+test("upcoming and live events contribute zero", () => {
+  const rows = calculateCalculatedLeaderboard(
+    [
+      calculatedEvent("upcoming", "group", "upcoming"),
+      calculatedEvent("live", "solo", "live"),
+    ],
+    [calculatedResult("upcoming", "raaga", 1), calculatedResult("live", "agni", 1)]
+  );
+  assert.deepEqual(rows.map((row) => row.totalPoints), [0, 0, 0, 0]);
+});
+
+test("multiple finished events accumulate points and placement counts", () => {
+  const rows = calculateCalculatedLeaderboard(
+    [
+      calculatedEvent("one", "group", "completed"),
+      calculatedEvent("two", "duo", "completed"),
+    ],
+    [calculatedResult("one", "raaga", 1), calculatedResult("two", "raaga", 2)]
+  );
+  const raaga = rows.find((row) => row.team === "raaga")!;
+  assert.equal(raaga.totalPoints, 28);
+  assert.equal(raaga.firstPlaceCount, 1);
+  assert.equal(raaga.secondPlaceCount, 1);
+});
+
+test("all four teams are returned with zero rows when unscored", () => {
+  const rows = calculateCalculatedLeaderboard([], []);
+  assert.deepEqual(rows.map((row) => row.team), ["raaga", "agni", "tarang", "utsav"]);
+  assert.ok(rows.every((row) => row.totalPoints === 0));
+});
+
+function manualRow(
+  team: TeamId,
+  totalPoints: number | string
+): ManualLeaderboardRow {
+  return {
+    team,
+    totalPoints: totalPoints as number,
+    note: "",
+    lastUpdated: "",
+  };
+}
+
+function calculatedRowsForManualTests(): CalculatedLeaderboardRow[] {
+  return [
+    { team: "raaga", totalPoints: 100, firstPlaceCount: 2, secondPlaceCount: 1, thirdPlaceCount: 0 },
+    { team: "agni", totalPoints: 80, firstPlaceCount: 1, secondPlaceCount: 2, thirdPlaceCount: 1 },
+    { team: "tarang", totalPoints: 60, firstPlaceCount: 0, secondPlaceCount: 1, thirdPlaceCount: 2 },
+    { team: "utsav", totalPoints: 0, firstPlaceCount: 0, secondPlaceCount: 0, thirdPlaceCount: 0 },
+  ];
+}
+
+test("blank MANUAL row falls back to CALCULATED total", () => {
+  const [raaga] = calculateEffectiveLeaderboard(calculatedRowsForManualTests(), []);
+  assert.equal(raaga.totalPoints, 100);
+  assert.equal(raaga.calculatedPoints, 100);
+  assert.equal(raaga.manualTotal, null);
+});
+
+test("numeric MANUAL total overrides CALCULATED total", () => {
+  const rows = calculateEffectiveLeaderboard(
+    calculatedRowsForManualTests(),
+    [manualRow("raaga", 25)]
+  );
+  const raaga = rows.find((row) => row.team === "raaga")!;
+  assert.equal(raaga.totalPoints, 25);
+  assert.equal(raaga.calculatedPoints, 100);
+  assert.equal(raaga.manualTotal, 25);
+});
+
+test("MANUAL total of zero is a valid override", () => {
+  const rows = calculateEffectiveLeaderboard(
+    calculatedRowsForManualTests(),
+    [manualRow("raaga", 0)]
+  );
+  assert.equal(rows.find((row) => row.team === "raaga")!.totalPoints, 0);
+});
+
+test("invalid MANUAL text falls back to CALCULATED total", () => {
+  const rows = calculateEffectiveLeaderboard(
+    calculatedRowsForManualTests(),
+    [manualRow("raaga", "not-a-number")]
+  );
+  const raaga = rows.find((row) => row.team === "raaga")!;
+  assert.equal(raaga.totalPoints, 100);
+  assert.equal(raaga.manualTotal, null);
+});
+
+test("manual override changes rank and point gap using effective totals", () => {
+  const rows = calculateEffectiveLeaderboard(
+    calculatedRowsForManualTests(),
+    [manualRow("tarang", 150)]
+  );
+  const tarang = rows.find((row) => row.team === "tarang")!;
+  const raaga = rows.find((row) => row.team === "raaga")!;
+  assert.equal(tarang.rank, 1);
+  assert.equal(tarang.pointGap, 0);
+  assert.equal(raaga.pointGap, 50);
+});
+
+test("equal effective totals share rank without changing placement counts", () => {
+  const rows = calculateEffectiveLeaderboard(
+    calculatedRowsForManualTests(),
+    [manualRow("agni", 100)]
+  );
+  const raaga = rows.find((row) => row.team === "raaga")!;
+  const agni = rows.find((row) => row.team === "agni")!;
+  assert.equal(raaga.rank, 1);
+  assert.equal(agni.rank, 1);
+  assert.equal(agni.firstPlaceCount, 1);
+  assert.equal(agni.secondPlaceCount, 2);
+  assert.equal(agni.thirdPlaceCount, 1);
+});
+
+test("manual merge still returns all four teams", () => {
+  const rows = calculateEffectiveLeaderboard(
+    calculatedRowsForManualTests(),
+    [manualRow("raaga", 0)]
+  );
+  assert.deepEqual(rows.map((row) => row.team).sort(), ["agni", "raaga", "tarang", "utsav"]);
+});
+
+test("CALCULATED sync writes all four ordered rows and ignores volunteer points", async () => {
+  const calculatedRows = [
+    { team: "raaga" as TeamId, totalPoints: 20, firstPlaceCount: 1, secondPlaceCount: 0, thirdPlaceCount: 0 },
+    { team: "agni" as TeamId, totalPoints: 8, firstPlaceCount: 0, secondPlaceCount: 1, thirdPlaceCount: 0 },
+    { team: "tarang" as TeamId, totalPoints: 5, firstPlaceCount: 0, secondPlaceCount: 0, thirdPlaceCount: 1 },
+    { team: "utsav" as TeamId, totalPoints: 0, firstPlaceCount: 0, secondPlaceCount: 0, thirdPlaceCount: 0 },
+  ];
+  const writes: unknown[] = [];
+  const fakeSheets = {
+    spreadsheets: {
+      values: {
+        get: async () => ({ data: { values: [["old"]] } }),
+        update: async (request: unknown) => { writes.push(request); return {}; },
+      },
+    },
+  };
+
+  assert.equal(await synchronizeCalculatedRows(calculatedRows, fakeSheets as never, "test-spreadsheet"), true);
+  assert.equal(writes.length, 1);
+  const request = writes[0] as { range: string; requestBody: { values: string[][] } };
+  assert.equal(request.range, CALCULATED_WRITE_RANGE);
+  assert.deepEqual(request.requestBody.values, [
+    ["RAAGA", "20", "1", "0", "0"],
+    ["AGNI", "8", "0", "1", "0"],
+    ["TARANG", "5", "0", "0", "1"],
+    ["UTSUV", "0", "0", "0", "0"],
+  ]);
+  assert.deepEqual(calculatedRowsToSheetValues(calculatedRows), request.requestBody.values);
+});
+
+test("CALCULATED sync skips unchanged rows and prevents duplicate appends", async () => {
+  const rows = calculatedRowsForManualTests();
+  const existing = calculatedRowsToSheetValues(rows);
+  let updateCount = 0;
+  const fakeSheets = {
+    spreadsheets: {
+      values: {
+        get: async () => ({ data: { values: existing } }),
+        update: async () => { updateCount++; return {}; },
+      },
+    },
+  };
+
+  assert.equal(await synchronizeCalculatedRows(rows, fakeSheets as never, "test-spreadsheet"), false);
+  assert.equal(updateCount, 0);
+});
+
+test("CALCULATED sync failure is contained and does not affect calculation", async () => {
+  const fakeSheets = {
+    spreadsheets: {
+      values: {
+        get: async () => { throw new Error("write/read failure"); },
+        update: async () => { throw new Error("must not be called"); },
+      },
+    },
+  };
+  const rows = calculatedRowsForManualTests();
+  assert.equal(await synchronizeCalculatedRows(rows, fakeSheets as never, "test-spreadsheet"), false);
+  assert.equal(rows.find((row) => row.team === "raaga")!.totalPoints, 100);
 });
 
 // ─── SECTION 12: calculateTeamStandings() — lib/scoring.ts ───────────────────

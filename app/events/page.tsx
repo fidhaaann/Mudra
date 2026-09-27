@@ -62,27 +62,27 @@ function LoadingSkeleton() {
           className="border border-[#E3D28A]/15 bg-[#110B0B] flex flex-col justify-between"
           aria-hidden="true"
         >
-          {/* Image placeholder — same aspect-[2/1] as real cards */}
-          <div className="w-full aspect-[2/1] bg-[#5A0E0B]/10 border-b border-[#E3D28A]/10" />
+          {/* Image placeholder — same fixed 4:5 frame as real cards */}
+          <div className="w-full aspect-4/5 bg-[#5A0E0B]/10 border-b border-[#E3D28A]/10" />
 
           {/* Card body */}
           <div className="p-4 space-y-3">
             {/* Event name placeholder — two lines for long names */}
             <div className="space-y-1.5">
               <div
-                className="h-[14px] bg-[#E3D28A]/10 rounded-sm"
+                className="h-3.5 bg-[#E3D28A]/10 rounded-sm"
                 style={{ width: `${65 + ((i * 17) % 25)}%` }}
               />
               <div
-                className="h-[14px] bg-[#E3D28A]/8 rounded-sm"
+                className="h-3.5 bg-[#E3D28A]/8 rounded-sm"
                 style={{ width: `${35 + ((i * 13) % 20)}%` }}
               />
             </div>
 
             {/* Card footer — category / status row */}
             <div className="flex items-center justify-between pt-2 border-t border-[#E3D28A]/10">
-              <div className="h-[10px] w-16 bg-[#E3D28A]/10 rounded-sm" />
-              <div className="h-[10px] w-14 bg-[#E3D28A]/10 rounded-sm" />
+              <div className="h-2.5 w-16 bg-[#E3D28A]/10 rounded-sm" />
+              <div className="h-2.5 w-14 bg-[#E3D28A]/10 rounded-sm" />
             </div>
           </div>
         </div>
@@ -243,31 +243,31 @@ export default function EventsPage() {
               <Link
                 key={event.id}
                 href={`/events/${event.id}`}
-                className="group border border-[#E3D28A]/40 bg-[#110B0B] hover:border-[#E3D28A] transition-colors flex flex-col justify-between"
+                className="group h-full border border-[#E3D28A]/40 bg-[#110B0B] hover:border-[#E3D28A] transition-colors flex flex-col"
               >
                 {/* Image or placeholder */}
                 {event.imageUrl ? (
-                  <div className="w-full aspect-[2/1] bg-[#5A0E0B]/20 border-b border-[#E3D28A]/25 overflow-hidden">
+                  <div className="w-full aspect-4/5 bg-[#5A0E0B]/20 border-b border-[#E3D28A]/25 overflow-hidden flex items-center justify-center">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={event.imageUrl}
                       alt={event.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      className="w-full h-full object-contain"
                     />
                   </div>
                 ) : (
-                  <div className="w-full aspect-[2/1] bg-[#5A0E0B]/10 border-b border-[#E3D28A]/20 flex items-center justify-center text-[10px] text-[#E3D28A]/30 font-display tracking-widest uppercase select-none">
+                  <div className="w-full aspect-4/5 bg-[#5A0E0B]/10 border-b border-[#E3D28A]/20 flex items-center justify-center text-[10px] text-[#E3D28A]/30 font-display tracking-widest uppercase select-none">
                     MUDRA
                   </div>
                 )}
 
                 {/* Card body */}
-                <div className="p-4 space-y-3">
+                <div className="flex flex-1 flex-col p-4 space-y-3">
                   <h2 className="font-display font-bold text-base text-[#E3D28A] group-hover:text-[#E02E0B] transition-colors leading-tight">
                     {event.name}
                   </h2>
 
-                  <div className="flex items-center justify-between font-display text-[10px] tracking-wider text-[#E3D28A]/60 pt-2 border-t border-[#E3D28A]/20">
+                  <div className="mt-auto flex items-center justify-between font-display text-[10px] tracking-wider text-[#E3D28A]/60 pt-2 border-t border-[#E3D28A]/20">
                     <span className="uppercase">{event.category}</span>
                     <span
                       className={`font-bold uppercase ${

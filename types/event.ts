@@ -17,5 +17,6 @@ export interface Event {
   schedule?: string;
   status: EventStatus;
   imageUrl?: string;
+  registrationLink?: string;
   registrationOpen?: boolean;
 }

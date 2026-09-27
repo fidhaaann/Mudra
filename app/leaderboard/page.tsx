@@ -31,10 +31,6 @@ function teamColor(teamId: string): string {
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
-function formatRank(rank: number): string {
-  return rank < 10 ? `0${rank}` : `${rank}`;
-}
-
 function fmtOrdinal(n: number): string {
   const s = ["th", "st", "nd", "rd"];
   const v = n % 100;
@@ -496,7 +492,7 @@ function StandingsTable({ teams, hasResults }: { teams: TeamLeaderboardEntry[]; 
           {teams.map((team) => (
             <tr key={team.teamId} className="hover:bg-[#5A0E0B]/20 transition-colors">
               <td className="py-3 px-3 sm:px-5 font-display font-bold text-[#E02E0B] whitespace-nowrap">
-                {hasResults ? formatRank(team.rank) : "—"}
+                {hasResults ? team.rank : "—"}
               </td>
               <td
                 className="py-3 px-3 sm:px-5 font-display font-bold tracking-wider whitespace-nowrap"
@@ -618,7 +614,7 @@ export default function LeaderboardPage() {
   const handleRetry = () => { loadLeaderboard(); };
 
   const teams = data?.teams ?? [];
-  const hasResults = teams.some((t) => t.totalPoints > 0);
+  const hasResults = (data?.completedEventCount ?? 0) > 0;
 
   return (
     // min-w-0 prevents the flex child from over-stretching on narrow viewports

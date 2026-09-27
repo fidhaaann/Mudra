@@ -1,6 +1,30 @@
 import { TeamId } from './team';
 
 export type PointsCategory = 'group' | 'duo' | 'solo' | 'offstage';
+export type LeaderboardTeamId = 'raaga' | 'agni' | 'tarang' | 'utsav';
+
+export interface CalculatedLeaderboardRow {
+  team: LeaderboardTeamId;
+  totalPoints: number;
+  firstPlaceCount: number;
+  secondPlaceCount: number;
+  thirdPlaceCount: number;
+}
+
+export interface ManualLeaderboardRow {
+  team: LeaderboardTeamId;
+  totalPoints: number;
+  note: string;
+  lastUpdated: string;
+}
+
+export interface EffectiveLeaderboardRow extends CalculatedLeaderboardRow {
+  calculatedPoints: number;
+  manualTotal: number | null;
+  totalPoints: number;
+  rank: number;
+  pointGap: number;
+}
 
 export interface TeamLeaderboardEntry {
   teamId: TeamId;

@@ -305,9 +305,13 @@ function Band({ isMobile, frontDataURL }: BandProps) {
             onPointerOver={() => hover(true)}
             onPointerOut={() => hover(false)}
             onPointerUp={(e) => {
-              (e.target as Element).releasePointerCapture(e.pointerId);
+              const target = e.target as Element;
+              if (target.hasPointerCapture?.(e.pointerId)) {
+                target.releasePointerCapture(e.pointerId);
+              }
               drag(false);
             }}
+            onPointerCancel={() => drag(false)}
             onPointerDown={(e) => {
               (e.target as Element).setPointerCapture(e.pointerId);
               drag(
@@ -403,7 +407,16 @@ export default function MudraLanyard({ student, height = "480px" }: MudraLanyard
       <Canvas
         camera={{ position: [0, 0, 30], fov: 20 }}
         dpr={[1, isMobile ? 1.5 : 2]}
+        style={{ touchAction: "none" }}
         gl={{ alpha: true }}
+        fallback={
+          <div className="flex h-full items-center justify-center border border-[#E02E0B] bg-[#110B0B] p-6 text-center">
+            <div>
+              <div className="text-[10px] uppercase tracking-widest text-[#E3D28A]/60">ALLOCATED HOUSE</div>
+              <div className="mt-2 font-display text-3xl font-black text-[#E3D28A]">{student.team}</div>
+            </div>
+          </div>
+        }
         onCreated={({ gl }) => gl.setClearColor(new THREE.Color(0x000000), 0)}
       >
         <ambientLight intensity={Math.PI} />

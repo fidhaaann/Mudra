@@ -5,7 +5,7 @@ import Image from "next/image";
 export const Footer: React.FC = () => {
   return (
     <footer className="relative z-1 w-full py-10 px-4 sm:px-6 flex justify-center">
-      <div className="w-full max-w-4xl bg-[#110B0B]/85 backdrop-blur-md border border-[#E3D28A]/25 rounded-full px-6 sm:px-8 py-3.5 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs shadow-2xl shadow-black/80">
+      <div className="glass-surface w-full max-w-4xl bg-[#110B0B]/85 backdrop-blur-md border border-[#E3D28A]/25 rounded-full px-6 sm:px-8 py-3.5 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs shadow-2xl shadow-black/80">
         {/* MUDRA Logo */}
         <Link href="/" className="group flex items-center shrink-0">
           <Image

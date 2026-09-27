@@ -3,17 +3,18 @@ import { getGoogleEnvVars } from '../security/env';
 import { Event, ParticipantType, PointsCategory, EventStatus } from '@/types/event';
 import { EventResult, PodiumPlacement } from '@/types/result';
 import { TeamId } from '@/types/team';
+import { getPointsForRank } from '@/data/pointRules';
 
 // ─── auth ─────────────────────────────────────────────────────────────────────
 
-function getSheetsClient() {
+export function getSheetsClient() {
   const { email, privateKey } = getGoogleEnvVars();
   const auth = new google.auth.GoogleAuth({
     credentials: {
       client_email: email,
       private_key: privateKey,
     },
-    scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
   });
   return google.sheets({ version: 'v4', auth });
 }
@@ -140,11 +141,17 @@ export async function fetchEvents(): Promise<Event[]> {
         schedule: schedule || undefined,
         status: (rawStatus === 'completed'
           ? 'completed'
+          : rawStatus === 'finished'
+          ? 'completed'
           : rawStatus === 'live'
           ? 'live'
           : 'upcoming') as EventStatus,
         imageUrl:
           imageIdx >= 0 && row[imageIdx] ? String(row[imageIdx]).trim() : undefined,
+        registrationLink:
+          regLinkIdx >= 0 && row[regLinkIdx]
+            ? String(row[regLinkIdx]).trim()
+            : undefined,
         registrationOpen:
           regLinkIdx >= 0
             ? Boolean(
@@ -228,8 +235,6 @@ export async function fetchResults(
         h === 'name'
     );
     const teamIdx  = headers.findIndex(h => h === 'team' || h === 'team id');
-    const pointsIdx = headers.findIndex(h => h === 'points' || h === 'points awarded');
-
     const resultsMap = new Map<string, PodiumPlacement[]>();
 
     for (let i = 1; i < rows.length; i++) {
@@ -254,15 +259,11 @@ export async function fetchResults(
       const teamId  = (['raaga', 'agni', 'tarang', 'utsav'].includes(rawTeam)
         ? rawTeam
         : 'raaga') as TeamId;
-      const points = pointsIdx >= 0
-        ? parseInt(String(row[pointsIdx] || '0').trim(), 10)
-        : 0;
-
       const placementObj: PodiumPlacement = {
         placement: placement as 1 | 2 | 3,
         participantOrTeamName: participantName,
         teamId,
-        pointsAwarded: isNaN(points) ? 0 : points,
+        pointsAwarded: 0,
       };
 
       const existing = resultsMap.get(eventId) ?? [];
@@ -280,14 +281,10 @@ export async function fetchResults(
 
     for (const [eventId, placements] of resultsMap.entries()) {
       const event = eventMap.get(eventId.toLowerCase());
-      if (event && event.status === 'completed') {
-        placements.sort((a, b) => a.placement - b.placement);
-        results.push({
-          eventId: event.id,
-          placements,
-          isDemoData: false,
-        });
-      }
+      const publishedResult = event
+        ? buildPublishedEventResult(event, placements)
+        : null;
+      if (publishedResult) results.push(publishedResult);
     }
 
     // Only cache when we used the shared events cache (not a caller-supplied
@@ -301,6 +298,28 @@ export async function fetchResults(
     console.error('Error fetching results from Google Sheets:', error);
     throw new Error('Failed to retrieve results.');
   }
+}
+
+/**
+ * Publishes only completed-event results and derives points from the
+ * authoritative event category rules. Sheet POINTS values are never used.
+ */
+export function buildPublishedEventResult(
+  event: Event,
+  placements: PodiumPlacement[]
+): EventResult | null {
+  if (event.status !== 'completed') return null;
+
+  return {
+    eventId: event.id,
+    placements: [...placements]
+      .sort((a, b) => a.placement - b.placement)
+      .map((placement) => ({
+        ...placement,
+        pointsAwarded: getPointsForRank(event.pointsCategory, placement.placement),
+      })),
+    isDemoData: false,
+  };
 }
 
 /**

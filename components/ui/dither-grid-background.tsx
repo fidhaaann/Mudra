@@ -205,7 +205,7 @@ function DitherGridCanvas({
       className={
         contained
           ? "absolute inset-0 z-0 w-full pointer-events-none opacity-[0.22]"
-          : "fixed inset-0 z-0 h-screen w-screen pointer-events-none opacity-[0.22]"
+          : "fixed inset-0 z-0 h-dvh w-dvw pointer-events-none opacity-[0.22]"
       }
       style={{ top: 0 }}
     />
