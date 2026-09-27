@@ -146,7 +146,6 @@ function DitherGridCanvas({
   startAfterHero?: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const pathname = usePathname();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -165,12 +164,8 @@ function DitherGridCanvas({
     const resize = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
       const bounds = contained ? canvas.parentElement?.getBoundingClientRect() : undefined;
-      const offset =
-        startAfterHero && window.location.pathname === "/"
-          ? window.innerHeight
-          : 0;
       width = bounds?.width ?? window.innerWidth;
-      height = Math.max(1, (bounds?.height ?? window.innerHeight) - offset);
+      height = Math.max(1, bounds?.height ?? window.innerHeight);
       canvas.width = Math.floor(width * dpr);
       canvas.height = Math.floor(height * dpr);
       canvas.style.width = `${width}px`;
@@ -209,14 +204,10 @@ function DitherGridCanvas({
       aria-hidden="true"
       className={
         contained
-          ? "absolute inset-x-0 bottom-0 z-0 w-full pointer-events-none opacity-[0.22]"
+          ? "absolute inset-0 z-0 w-full pointer-events-none opacity-[0.22]"
           : "fixed inset-0 z-0 h-screen w-screen pointer-events-none opacity-[0.22]"
       }
-      style={
-        contained && startAfterHero && pathname === "/"
-          ? { top: "100vh" }
-          : { top: 0 }
-      }
+      style={{ top: 0 }}
     />
   );
 }
