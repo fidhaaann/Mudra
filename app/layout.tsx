@@ -62,7 +62,7 @@ export default function RootLayout({
         <Navbar />
         <div className="relative isolate flex min-h-full flex-1 flex-col overflow-hidden">
           <DitherGridBackground contained startAfterHero />
-          <main className="relative z-[1] flex-1 flex flex-col w-full">
+          <main className="relative z-1 flex-1 flex flex-col w-full">
             {children}
           </main>
           <Footer />

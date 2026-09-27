@@ -89,7 +89,8 @@ export default function HomePage() {
       <section
         ref={heroRef}
         aria-label="MUDRA 2026 hero"
-        className="relative w-full h-screen h-[100svh] h-[100dvh] overflow-hidden flex flex-col items-center justify-between border-b border-[#E3D28A]/30"
+        className="relative w-full h-svh overflow-hidden flex flex-col items-center justify-between border-b border-[#E3D28A]/30"
+        style={{ height: "100dvh" }}
       >
         {/* Full Page Ripple Distortion Canvas */}
         <div className="absolute inset-0 z-0 w-full h-full">
@@ -113,7 +114,7 @@ export default function HomePage() {
         </div>
 
         {/* Atmospheric Dark Overlay */}
-        <div className="absolute inset-0 z-[1] bg-gradient-to-b from-[#110B0B]/65 via-[#110B0B]/35 to-[#110B0B]/80 pointer-events-none" />
+        <div className="absolute inset-0 z-1 bg-linear-to-b from-[#110B0B]/65 via-[#110B0B]/35 to-[#110B0B]/80 pointer-events-none" />
 
         {/* Top Spacer for floating Navbar clearance */}
         <div className="h-[clamp(4.5rem,10svh,6.5rem)] shrink-0 pointer-events-none" />
@@ -126,7 +127,7 @@ export default function HomePage() {
           ease="power2.out"
           delay={50}
           initialOpacity={0}
-          className="relative z-[2] flex flex-col items-center text-center px-4 sm:px-6 md:px-8 max-w-4xl mx-auto my-auto select-none w-full"
+          className="relative z-2 flex flex-col items-center text-center px-4 sm:px-6 md:px-8 max-w-4xl mx-auto my-auto select-none w-full"
           style={{ opacity: 0 }}
         >
           {/* Institute Logo */}
@@ -151,7 +152,11 @@ export default function HomePage() {
                 height={511}
                 priority
                 loading="eager"
-                className="w-full h-auto max-h-[clamp(160px,36svh,420px)] object-contain filter drop-shadow-[0_0_50px_rgba(224,46,11,0.6)] drop-shadow-[0_10px_25px_rgba(0,0,0,0.95)]"
+                className="w-full h-auto max-h-[clamp(160px,36svh,420px)] object-contain"
+                style={{
+                  filter:
+                    "drop-shadow(0 0 32px rgba(224,46,11,0.32)) drop-shadow(0 10px 25px rgba(0,0,0,0.95))",
+                }}
               />
             </div>
           </div>
@@ -172,8 +177,8 @@ export default function HomePage() {
       </section>
 
       {/* 2. POINTS TABLE / TEAM STANDINGS SECTION */}
-      <section id="team-standings" ref={nextRef} className="relative z-[1] max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20 w-full min-w-0">
-        <div ref={nextContentRef} className="relative z-[1] space-y-12">
+      <section id="team-standings" ref={nextRef} className="relative z-1 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20 w-full min-w-0">
+        <div ref={nextContentRef} className="relative z-1 space-y-12">
         <div className="text-center space-y-2">
           <div className="font-display text-xs tracking-widest text-[#E02E0B] uppercase font-bold">
             MUDRA 2026 CHAMPIONSHIP

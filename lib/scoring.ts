@@ -3,7 +3,7 @@ import { Team, TeamStanding, TeamId } from "@/types/team";
 import { EventResult } from "@/types/result";
 import { getPointsForRank, POINT_RULES } from "@/data/pointRules";
 import { TEAMS } from "@/data/teams";
-import { RECORDED_RESULTS } from "@/data/mockResults";
+import { RECORDED_RESULTS } from "@/data/recorded-results";
 
 /**
  * Calculates points awarded for a given placement.

@@ -71,9 +71,13 @@ function StoneBar({ progress, reducedMotion }: StoneBarProps) {
       <svg
         viewBox={`0 0 ${W} ${H}`}
         width="100%"
-        height="auto"
         xmlns="http://www.w3.org/2000/svg"
-        style={{ display: "block", overflow: "visible" }}
+        style={{
+          display: "block",
+          overflow: "visible",
+          height: "auto",
+          aspectRatio: `${W} / ${H}`,
+        }}
       >
         {/* Stone trough layers */}
         <rect x={0}   y={0}   width={W}     height={H}     fill="#0A0504" />
