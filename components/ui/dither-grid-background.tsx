@@ -162,14 +162,28 @@ function DitherGridCanvas({
     let currentTime = 0;
 
     const resize = () => {
+      const bounds = canvas.getBoundingClientRect();
+      const nextWidth = Math.max(1, bounds.width);
+      const nextHeight = Math.max(1, bounds.height);
       const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-      const bounds = contained ? canvas.parentElement?.getBoundingClientRect() : undefined;
-      width = bounds?.width ?? window.innerWidth;
-      height = Math.max(1, bounds?.height ?? window.innerHeight);
-      canvas.width = Math.floor(width * dpr);
-      canvas.height = Math.floor(height * dpr);
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
+      const nextBufferWidth = Math.max(1, Math.round(nextWidth * dpr));
+      const nextBufferHeight = Math.max(1, Math.round(nextHeight * dpr));
+
+      if (
+        nextWidth === width &&
+        nextHeight === height &&
+        canvas.width === nextBufferWidth &&
+        canvas.height === nextBufferHeight
+      ) {
+        return;
+      }
+
+      width = nextWidth;
+      height = nextHeight;
+      // CSS dimensions define the visual grid. DPR only controls backing-store
+      // resolution and must not be included in the cell-size calculation.
+      canvas.width = nextBufferWidth;
+      canvas.height = nextBufferHeight;
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
       drawDither(context, width, height, currentTime);
     };
@@ -181,10 +195,9 @@ function DitherGridCanvas({
     };
 
     const observer = new ResizeObserver(resize);
-    observer.observe(
-      contained ? canvas.parentElement ?? document.documentElement : document.documentElement
-    );
+    observer.observe(canvas);
     window.addEventListener("resize", resize, { passive: true });
+    window.visualViewport?.addEventListener("resize", resize, { passive: true });
     resize();
 
     if (!reducedMotion) {
@@ -195,6 +208,7 @@ function DitherGridCanvas({
       cancelAnimationFrame(animationFrame);
       observer.disconnect();
       window.removeEventListener("resize", resize);
+      window.visualViewport?.removeEventListener("resize", resize);
     };
   }, [contained, startAfterHero]);
 
@@ -204,8 +218,8 @@ function DitherGridCanvas({
       aria-hidden="true"
       className={
         contained
-          ? "absolute inset-0 z-0 w-full pointer-events-none opacity-[0.22]"
-          : "fixed inset-0 z-0 h-dvh w-dvw pointer-events-none opacity-[0.22]"
+          ? "absolute inset-0 z-0 size-full pointer-events-none opacity-[0.22]"
+          : "fixed inset-0 z-0 size-full pointer-events-none opacity-[0.22]"
       }
       style={{ top: 0 }}
     />
