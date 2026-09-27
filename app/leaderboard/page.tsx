@@ -630,7 +630,7 @@ export default function LeaderboardPage() {
           LEADERBOARD
         </h1>
         <p className="font-body text-xs sm:text-sm text-[#E3D28A]/70">
-          Official championship standings for the four houses of Mudra 2026.
+          Official championship standings for the four houses of Mudra.
         </p>
       </div>
 

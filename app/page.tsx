@@ -88,7 +88,7 @@ export default function HomePage() {
       {/* 1. HERO SECTION — exactly 1 complete viewport with full-screen WebGL ripples */}
       <section
         ref={heroRef}
-        aria-label="MUDRA 2026 hero"
+        aria-label="MUDRA hero"
         className="relative w-full h-svh overflow-hidden flex flex-col items-center justify-between border-b border-[#E3D28A]/30"
       >
         {/* Full Page Ripple Distortion Canvas */}
@@ -146,7 +146,7 @@ export default function HomePage() {
             <div className="w-[clamp(170px,min(60vw,38svh),460px)] flex justify-center">
               <Image
                 src="/images/mudra-logo.png"
-                alt="MUDRA 2026 Emblem"
+                alt="MUDRA Emblem"
                 width={585}
                 height={511}
                 priority
@@ -158,11 +158,6 @@ export default function HomePage() {
                 }}
               />
             </div>
-          </div>
-
-          {/* Year — Increased size */}
-          <div className="font-display text-[clamp(2rem,5.5svh,4.25rem)] font-black tracking-[clamp(0.25em,1.5vw,0.45em)] text-[#E3D28A] mt-[clamp(0.3rem,1.5svh,0.9rem)]">
-            2026
           </div>
 
           {/* Cultural Tagline — Increased size */}
@@ -180,7 +175,7 @@ export default function HomePage() {
         <div ref={nextContentRef} className="relative z-1 space-y-12">
         <div className="text-center space-y-2">
           <div className="font-display text-xs tracking-widest text-[#E02E0B] uppercase font-bold">
-            MUDRA 2026 CHAMPIONSHIP
+            MUDRA CHAMPIONSHIP
           </div>
           <h2 className="font-display font-black text-3xl sm:text-4xl text-[#E3D28A] tracking-wider uppercase">
             TEAM STANDINGS & POINTS

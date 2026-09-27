@@ -161,7 +161,7 @@ export default function EventDetailPage() {
             </div>
           ) : (
             <div className="w-full aspect-[21/9] bg-[#5A0E0B]/10 border border-[#E3D28A]/20 flex items-center justify-center text-xs text-[#E3D28A]/30 font-display tracking-widest uppercase select-none">
-              MUDRA 2026
+              MUDRA
             </div>
           )}
 

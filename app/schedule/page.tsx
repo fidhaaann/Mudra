@@ -472,7 +472,7 @@ export default function SchedulePage() {
           SCHEDULE
         </h1>
         <p className="font-body text-xs sm:text-sm text-[#E3D28A]/60">
-          Stage arenas, timings, and competition venue assignments for Mudra 2026.
+          Stage arenas, timings, and competition venue assignments for Mudra.
         </p>
       </div>
 

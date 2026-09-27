@@ -133,7 +133,7 @@ function StoneBar({ progress, reducedMotion }: StoneBarProps) {
         className="font-body text-[9px] tracking-[0.25em] text-[#E3D28A] uppercase"
         style={{ opacity: 0.3 }}
       >
-        MUDRA · 2026
+        MUDRA
       </div>
     </div>
   );

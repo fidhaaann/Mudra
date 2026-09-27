@@ -36,8 +36,8 @@ const spaceMono = Space_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MUDRA 2026",
-  description: "Official website for MUDRA 2026-Toc H Cultural Arts Competition.",
+  title: "MUDRA",
+  description: "Official website for the MUDRA-Toc H Cultural Arts Competition.",
   icons: {
     icon: "/images/mudra-logo.png",
     shortcut: "/images/mudra-logo.png",

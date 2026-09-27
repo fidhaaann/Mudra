@@ -10,7 +10,7 @@ export const Footer: React.FC = () => {
         <Link href="/" className="group flex items-center shrink-0">
           <Image
             src="/images/mudra-logo.png"
-            alt="MUDRA 2026"
+            alt="MUDRA"
             width={585}
             height={511}
             loading="eager"
@@ -46,7 +46,7 @@ export const Footer: React.FC = () => {
 
         {/* Copyright */}
         <div className="font-body text-[#E3D28A]/50 tracking-wider">
-          © MUDRA 2026
+          © MUDRA
         </div>
       </div>
     </footer>

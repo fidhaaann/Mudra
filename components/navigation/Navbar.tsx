@@ -50,7 +50,7 @@ export const Navbar: React.FC = () => {
         <Link href="/" className="group flex items-center py-0.5 shrink-0">
           <Image
             src="/images/mudra-logo.png"
-            alt="MUDRA 2026"
+            alt="MUDRA"
             width={585}
             height={511}
             priority

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * MudraLanyard — MUDRA 2026 identity-card lanyard
+ * MudraLanyard — MUDRA identity-card lanyard
  * ─────────────────────────────────────────────────
  * Adapted from the React Bits Lanyard component.
  * Source: https://www.reactbits.dev/components/lanyard
@@ -83,7 +83,7 @@ function buildCardFaceDataURL(student: StudentCardData): Promise<string> {
       ctx.fillStyle     = "#E3D28A";
       ctx.font          = "bold 22px serif";
       ctx.letterSpacing = "0.18em";
-      ctx.fillText("MUDRA 2026", fw / 2, 188);
+      ctx.fillText("MUDRA", fw / 2, 188);
 
       ctx.strokeStyle = "#5A0E0B";
       ctx.lineWidth   = 1;
