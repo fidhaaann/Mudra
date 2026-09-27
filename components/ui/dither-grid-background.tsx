@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 
 const PALETTE = ["#110B0B", "#5A0E0B", "#E02E0B", "#EE8814", "#E3D28A"] as const;
+const DITHER_CELL_SIZE = 56;
 const BAYER_4X4 = [
   [0, 8, 2, 10],
   [12, 4, 14, 6],
@@ -24,8 +25,6 @@ const CONFIG = {
   count: 6,
   fade: 40,
   spread: -20,
-  pixelCols: 25,
-  pixelRows: 15,
   pixelAngle: 62,
   pixelDither: 76,
   pixelGap: 7,
@@ -69,23 +68,25 @@ function drawDither(
   context.fillStyle = PALETTE[0];
   context.fillRect(0, 0, width, height);
 
+  const pixelCols = Math.ceil(width / DITHER_CELL_SIZE);
+  const pixelRows = Math.ceil(height / DITHER_CELL_SIZE);
   const ph = time * 0.71;
   const amt = 0.6;
   const dir = 1;
   const spin = ph * dir;
   const modulation = Math.sin(ph * 0.9 * dir) * 0.5 * amt;
-  const cellWidth = width / CONFIG.pixelCols;
-  const cellHeight = height / CONFIG.pixelRows;
+  const cellWidth = DITHER_CELL_SIZE;
+  const cellHeight = DITHER_CELL_SIZE;
   const subPixelWidth = cellWidth / 4;
   const subPixelHeight = cellHeight / 4;
   const angle = (CONFIG.pixelAngle * Math.PI) / 180;
   const cos = Math.cos(angle);
   const sin = Math.sin(angle);
 
-  for (let row = 0; row < CONFIG.pixelRows; row++) {
-    for (let column = 0; column < CONFIG.pixelCols; column++) {
-      const baseX = (column + 0.5) / CONFIG.pixelCols;
-      const baseY = (row + 0.5) / CONFIG.pixelRows;
+  for (let row = 0; row < pixelRows; row++) {
+    for (let column = 0; column < pixelCols; column++) {
+      const baseX = (column + 0.5) / pixelCols;
+      const baseY = (row + 0.5) / pixelRows;
       const centeredX = baseX - CONFIG.centerX / 100;
       const centeredY = baseY - CONFIG.centerY / 100;
       const rotatedX = centeredX * cos - centeredY * sin;
@@ -159,11 +160,15 @@ function DitherGridCanvas({
     let animationFrame = 0;
     let width = 0;
     let height = 0;
+    let currentTime = 0;
 
     const resize = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
       const bounds = contained ? canvas.parentElement?.getBoundingClientRect() : undefined;
-      const offset = startAfterHero && pathname === "/" ? window.innerHeight : 0;
+      const offset =
+        startAfterHero && window.location.pathname === "/"
+          ? window.innerHeight
+          : 0;
       width = bounds?.width ?? window.innerWidth;
       height = Math.max(1, (bounds?.height ?? window.innerHeight) - offset);
       canvas.width = Math.floor(width * dpr);
@@ -171,11 +176,12 @@ function DitherGridCanvas({
       canvas.style.width = `${width}px`;
       canvas.style.height = `${height}px`;
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
-      drawDither(context, width, height, 0);
+      drawDither(context, width, height, currentTime);
     };
 
     const render = (now: number) => {
-      drawDither(context, width, height, now / 1000);
+      currentTime = now / 1000;
+      drawDither(context, width, height, currentTime);
       animationFrame = requestAnimationFrame(render);
     };
 
@@ -195,7 +201,7 @@ function DitherGridCanvas({
       observer.disconnect();
       window.removeEventListener("resize", resize);
     };
-  }, [contained, pathname, startAfterHero]);
+  }, [contained, startAfterHero]);
 
   return (
     <canvas
