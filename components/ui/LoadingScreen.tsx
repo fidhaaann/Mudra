@@ -81,6 +81,7 @@ export const LoadingScreen: React.FC = () => {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.35, ease: "easeInOut" }}
           className="fixed inset-0 z-[9999] bg-[#110B0B] flex items-center justify-center select-none"
+          aria-hidden="true"
         >
           {/* Centered Mudra Box: full aspect ratio including entire yellow stroke */}
           <div className="relative w-48 sm:w-56 md:w-64 aspect-[2858/3039] flex items-center justify-center">
@@ -111,7 +112,7 @@ export const LoadingScreen: React.FC = () => {
             >
               <Image
                 src={activeImage}
-                alt="Kerala Mudra"
+                alt=""
                 width={500}
                 height={532}
                 priority

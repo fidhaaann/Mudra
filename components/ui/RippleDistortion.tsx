@@ -228,6 +228,7 @@ const RippleDistortion: React.FC<RippleDistortionProps> = ({
     canvas.style.width = "100%";
     canvas.style.height = "100%";
     canvas.style.display = "block";
+    canvas.setAttribute("aria-hidden", "true");
     mount.appendChild(canvas);
 
     const imageTexture = new Texture(gl, {
@@ -459,7 +460,7 @@ const RippleDistortion: React.FC<RippleDistortionProps> = ({
     (u.composite.uTint as { value: [number, number, number] }).value = hexToRGB(tint);
   }, [rings, strength, swirl, dispersion, glint, tintAmount, grayscale, highlightColor, tint]);
 
-  return <div ref={mountRef} className={`ripple-distortion ${className}`.trim()} style={style} />;
+  return <div ref={mountRef} aria-hidden="true" className={`ripple-distortion ${className}`.trim()} style={style} />;
 };
 
 export default RippleDistortion;

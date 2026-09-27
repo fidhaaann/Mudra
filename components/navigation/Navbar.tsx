@@ -87,6 +87,8 @@ export const Navbar: React.FC = () => {
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="p-1.5 rounded-full text-[#E3D28A] hover:bg-[#5A0E0B]/40 hover:text-[#E02E0B] transition-colors"
             aria-label="Toggle navigation menu"
+            aria-expanded={mobileMenuOpen}
+            aria-controls="mobile-nav-drawer"
           >
             {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
@@ -94,7 +96,11 @@ export const Navbar: React.FC = () => {
 
         {/* Mobile Floating Drawer */}
         {mobileMenuOpen && (
-          <div className="absolute top-full mt-3 left-0 right-0 bg-[#110B0B]/95 backdrop-blur-md border border-[#E3D28A]/25 rounded-2xl p-4 shadow-2xl shadow-black/90 space-y-1.5 md:hidden pointer-events-auto">
+          <nav
+            id="mobile-nav-drawer"
+            aria-label="Mobile navigation"
+            className="absolute top-full mt-3 left-0 right-0 bg-[#110B0B]/95 backdrop-blur-md border border-[#E3D28A]/25 rounded-2xl p-4 shadow-2xl shadow-black/90 space-y-1.5 md:hidden pointer-events-auto"
+          >
             {NAV_LINKS.map((link) => {
               const isActive =
                 pathname === link.href ||
@@ -115,7 +121,7 @@ export const Navbar: React.FC = () => {
                 </Link>
               );
             })}
-          </div>
+          </nav>
         )}
       </div>
     </motion.header>
