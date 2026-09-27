@@ -54,4 +54,4 @@ export class MemoryRateLimiter implements RateLimiter {
 }
 
 // Export a default instance for general API use
-export const apiRateLimiter = new MemoryRateLimiter({ maxRequests: 20, windowMs: 60 * 1000 });
+export const apiRateLimiter = new MemoryRateLimiter({ maxRequests: 60, windowMs: 60 * 1000 });

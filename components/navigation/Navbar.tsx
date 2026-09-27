@@ -9,10 +9,11 @@ import { motion, useScroll, useMotionValueEvent } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
-  { href: "/events", label: "EVENTS" },
-  { href: "/schedule", label: "SCHEDULE" },
+  { href: "/",            label: "HOME"        },
+  { href: "/events",      label: "EVENTS"      },
+  { href: "/schedule",    label: "SCHEDULE"    },
   { href: "/leaderboard", label: "LEADERBOARD" },
-  { href: "/team", label: "TEAM" },
+  { href: "/team",        label: "TEAM"        },
 ];
 
 export const Navbar: React.FC = () => {
@@ -61,8 +62,10 @@ export const Navbar: React.FC = () => {
         <nav className="hidden md:flex items-center gap-1 sm:gap-2">
           {NAV_LINKS.map((link) => {
             const isActive =
-              pathname === link.href ||
-              (link.href === "/team" && pathname === "/lookup");
+              link.href === "/"
+                ? pathname === "/"
+                : pathname === link.href ||
+                  (link.href === "/team" && pathname === "/lookup");
             return (
               <Link
                 key={link.href}
@@ -103,8 +106,10 @@ export const Navbar: React.FC = () => {
           >
             {NAV_LINKS.map((link) => {
               const isActive =
-                pathname === link.href ||
-                (link.href === "/team" && pathname === "/lookup");
+                link.href === "/"
+                  ? pathname === "/"
+                  : pathname === link.href ||
+                    (link.href === "/team" && pathname === "/lookup");
               return (
                 <Link
                   key={link.href}

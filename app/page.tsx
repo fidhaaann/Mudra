@@ -1,10 +1,15 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
+import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { calculateTeamStandings } from "@/lib/scoring";
+import FadeContent from "@/components/ui/FadeContent";
+
+gsap.registerPlugin(ScrollTrigger);
 
 const RippleDistortion = dynamic(
   () => import("@/components/ui/RippleDistortion"),
@@ -14,6 +19,85 @@ const RippleDistortion = dynamic(
 export default function HomePage() {
   const standings = calculateTeamStandings();
   const hasResults = standings.some((s) => s.totalPoints > 0);
+
+  // ── FadeContent trigger ──────────────────────────────────────────────────
+  const [heroReady, setHeroReady] = useState(false);
+
+  useEffect(() => {
+    // Fallback: if the loading screen never ran (hot reload / navigation),
+    // reveal the hero after a short delay so content isn't stuck invisible.
+    const fallback = setTimeout(() => setHeroReady(true), 800);
+
+    const onDone = () => {
+      clearTimeout(fallback);
+      setHeroReady(true);
+    };
+
+    window.addEventListener("mudra:loading-done", onDone);
+    return () => {
+      window.removeEventListener("mudra:loading-done", onDone);
+      clearTimeout(fallback);
+    };
+  }, []);
+
+  // ── Hero → next-section scroll depth transition ──────────────────────────
+  // Hero section subtly scales down and drifts upward as the user scrolls.
+  // The next section (standings) rises up from a slight yPercent offset.
+  // Pure GSAP transforms — zero React state per frame, no layout properties.
+  const heroRef     = useRef<HTMLElement>(null);
+  const nextRef     = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    // Respect prefers-reduced-motion
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    const hero = heroRef.current;
+    const next = nextRef.current;
+    if (!hero || !next) return;
+
+    const isMobile = window.innerWidth < 768;
+
+    // Initial state: set the next section slightly below its natural position.
+    // willChange promotes these elements to their own compositor layers.
+    gsap.set(hero, { willChange: "transform" });
+    gsap.set(next, { yPercent: isMobile ? 2 : 4, willChange: "transform" });
+
+    // Hero scrolls away: scales very gently down and drifts up
+    const heroTween = gsap.to(hero, {
+      scale:    isMobile ? 0.98 : 0.96,
+      yPercent: isMobile ? -3  : -5,
+      ease:     "none",
+      scrollTrigger: {
+        trigger:             hero,
+        start:               "top top",
+        end:                 "bottom top",
+        scrub:               1.4,
+        invalidateOnRefresh: true,
+      },
+    });
+
+    // Next section rises up to its natural position as hero scrolls away
+    const nextTween = gsap.to(next, {
+      yPercent: 0,
+      ease:     "none",
+      scrollTrigger: {
+        trigger:             hero,
+        start:               "top top",
+        end:                 "bottom top",
+        scrub:               1.0,
+        invalidateOnRefresh: true,
+      },
+    });
+
+    return () => {
+      heroTween.scrollTrigger?.kill();
+      heroTween.kill();
+      nextTween.scrollTrigger?.kill();
+      nextTween.kill();
+      gsap.set(hero, { clearProps: "scale,yPercent,willChange" });
+      gsap.set(next, { clearProps: "yPercent,willChange" });
+    };
+  }, []);
 
   return (
     <div className="flex flex-col w-full">
@@ -50,7 +134,16 @@ export default function HomePage() {
         <div className="h-[clamp(4.5rem,10svh,6.5rem)] shrink-0 pointer-events-none" />
 
         {/* Hero Content — Centered with dynamic dual-axis scaling */}
-        <div className="relative z-[2] flex flex-col items-center text-center px-4 sm:px-6 md:px-8 max-w-4xl mx-auto my-auto select-none w-full">
+        <FadeContent
+          trigger={heroReady}
+          blur
+          duration={700}
+          ease="power2.out"
+          delay={50}
+          initialOpacity={0}
+          className="relative z-[2] flex flex-col items-center text-center px-4 sm:px-6 md:px-8 max-w-4xl mx-auto my-auto select-none w-full"
+          style={{ opacity: 0 }}
+        >
           {/* Prominent Mudra Logo Emblem — increased size */}
           <motion.div
             initial={{ opacity: 0, scale: 0.85, y: -10 }}
@@ -90,7 +183,7 @@ export default function HomePage() {
           >
             <p>A thousand gestures, a thousand stories, one celebration of art.</p>
           </motion.div>
-        </div>
+        </FadeContent>
 
         {/* Bottom Spacer */}
         <div className="pb-6 shrink-0 pointer-events-none" />
