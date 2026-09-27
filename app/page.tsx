@@ -167,22 +167,6 @@ export default function HomePage() {
           </div>
         </FadeContent>
 
-        {/* Gentle scroll cue — moves the page without changing hero positioning */}
-        <motion.button
-          type="button"
-          aria-label="Scroll to team standings"
-          animate={{ y: [0, 6, 0], opacity: [0.55, 1, 0.55] }}
-          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-          onClick={() =>
-            nextRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
-          }
-          className="absolute bottom-5 left-1/2 z-[2] -translate-x-1/2 text-[#E3D28A]/80 transition-colors hover:text-[#E3D28A] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#E3D28A]"
-        >
-          <span aria-hidden="true" className="text-2xl leading-none">
-            ↓
-          </span>
-        </motion.button>
-
         {/* Bottom Spacer */}
         <div className="pb-6 shrink-0 pointer-events-none" />
       </section>
