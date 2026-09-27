@@ -90,7 +90,6 @@ export default function HomePage() {
         ref={heroRef}
         aria-label="MUDRA 2026 hero"
         className="relative w-full h-svh overflow-hidden flex flex-col items-center justify-between border-b border-[#E3D28A]/30"
-        style={{ height: "100dvh" }}
       >
         {/* Full Page Ripple Distortion Canvas */}
         <div className="absolute inset-0 z-0 w-full h-full">
