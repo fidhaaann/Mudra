@@ -170,18 +170,6 @@ export default function HomePage() {
           className="relative z-2 flex flex-col items-center text-center px-4 sm:px-6 md:px-8 max-w-4xl mx-auto my-auto select-none w-full"
           style={{ opacity: 0 }}
         >
-          {/* Institute Logo */}
-          <Image
-            src="/images/mudras/Tist small-white 2.png"
-            alt="TocH Institute of Science & Technology"
-            width={2000}
-            height={290}
-            priority
-            loading="eager"
-            sizes="(max-width: 768px) 55vw, 240px"
-            className="mb-[clamp(0.75rem,2svh,1.25rem)] h-auto w-[min(55vw,240px)] object-contain"
-          />
-
           {/* Prominent Mudra Logo Emblem — increased size */}
           <div className="relative flex justify-center w-full">
             <div className="w-[clamp(170px,min(60vw,38svh),460px)] flex justify-center">

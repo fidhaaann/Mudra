@@ -160,7 +160,7 @@ function DitherGridCanvas({
     let width = 0;
     let height = 0;
     let currentTime = 0;
-    const resizeTarget = contained ? canvas.parentElement ?? canvas : canvas;
+    const resizeTarget = canvas;
 
     const resize = () => {
       const bounds = resizeTarget.getBoundingClientRect();
@@ -220,9 +220,7 @@ function DitherGridCanvas({
       ref={canvasRef}
       aria-hidden="true"
       className={
-        contained
-          ? "absolute inset-0 z-0 size-full pointer-events-none opacity-[0.22]"
-          : "fixed inset-0 z-0 size-full pointer-events-none opacity-[0.22]"
+        "fixed inset-0 z-0 size-full pointer-events-none opacity-[0.22]"
       }
       style={{ top: 0 }}
     />

@@ -18,6 +18,16 @@ export const Footer: React.FC = () => {
           />
         </Link>
 
+        {/* TocH Logo */}
+        <Image
+          src="/images/mudras/Tist small-white 2.png"
+          alt="TocH Institute of Science & Technology"
+          width={2000}
+          height={290}
+          sizes="(max-width: 640px) 45vw, 180px"
+          className="h-auto w-[min(45vw,180px)] object-contain"
+        />
+
         {/* Instagram Icon Link */}
         <a
           href="https://www.instagram.com/mudra.tist?stkn=MWtobTIyNm04MDZ1eg%3D%3D&utm_source=qr"
