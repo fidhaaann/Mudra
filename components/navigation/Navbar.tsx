@@ -54,6 +54,7 @@ export const Navbar: React.FC = () => {
             width={585}
             height={511}
             priority
+            loading="eager"
             className="h-8 sm:h-9 w-auto object-contain transition-transform duration-300 group-hover:scale-110"
           />
         </Link>
