@@ -188,7 +188,7 @@ export default function EventDetailPage() {
                 {event.status}
               </span>
             </div>
-            <h1 className="font-display font-black text-2xl sm:text-4xl text-[#E3D28A] uppercase">
+            <h1 className="font-display font-black text-2xl sm:text-4xl text-[#E3D28A] uppercase break-words">
               {event.name}
             </h1>
           </div>
@@ -265,25 +265,26 @@ export default function EventDetailPage() {
             <h2 className="font-display text-[10px] tracking-widest text-[#E3D28A]/50 uppercase">
               RESULTS
             </h2>
+            <div className="overflow-x-auto min-w-0">
             {results && results.placements && results.placements.length > 0 ? (
-              <div className="space-y-2 font-body text-xs">
+              <div className="space-y-2 font-body text-xs min-w-[280px]">
                 {results.placements.map((p) => (
                   <div
                     key={p.placement}
-                    className="flex justify-between items-center py-2 border-b border-[#E3D28A]/20"
+                    className="flex justify-between items-center py-2 border-b border-[#E3D28A]/20 gap-3"
                   >
-                    <div className="flex items-center gap-2">
-                      <span className="font-display font-bold text-[#E3D28A]">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="font-display font-bold text-[#E3D28A] shrink-0">
                         #{p.placement}
                       </span>
-                      <span className="text-[#E3D28A]">
+                      <span className="text-[#E3D28A] truncate">
                         {p.participantOrTeamName}
                       </span>
-                      <span className="text-[10px] uppercase px-1.5 py-0.5 border border-[#E3D28A]/30 text-[#E3D28A]/70 font-mono">
+                      <span className="text-[10px] uppercase px-1.5 py-0.5 border border-[#E3D28A]/30 text-[#E3D28A]/70 font-mono shrink-0">
                         {p.teamId}
                       </span>
                     </div>
-                    <span className="text-[#E02E0B] font-bold">
+                    <span className="text-[#E02E0B] font-bold shrink-0">
                       +{p.pointsAwarded} PTS
                     </span>
                   </div>
@@ -294,6 +295,7 @@ export default function EventDetailPage() {
                 Results will be published here upon event completion.
               </p>
             )}
+            </div>
           </div>
         </div>
       )}

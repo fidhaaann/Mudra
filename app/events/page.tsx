@@ -1,164 +1,197 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useReducer, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { Search, AlertCircle, RefreshCw } from "lucide-react";
 import { Event } from "@/types/event";
 
+// ─── types ────────────────────────────────────────────────────────────────────
+
+type CategoryFilter = "all" | "on-stage" | "off-stage";
+
+// Pre-lowercased search key computed once after fetch — never recomputed per keystroke.
+interface IndexedEvent extends Event {
+  _searchKey: string; // `${id}\n${name}` lowercased, ready for String.includes()
+}
+
+// ─── helpers ──────────────────────────────────────────────────────────────────
+
+function buildIndex(events: Event[]): IndexedEvent[] {
+  return events.map((e) => ({
+    ...e,
+    _searchKey: `${e.id}\n${e.name}`.toLowerCase(),
+  }));
+}
+
+// ─── fetch state machine ──────────────────────────────────────────────────────
+// Using useReducer lets us express state transitions cleanly without calling
+// setState synchronously inside a useEffect body (which the lint rule forbids).
+
+type FetchState =
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "ok"; indexed: IndexedEvent[] };
+
+type FetchAction =
+  | { type: "retry" }
+  | { type: "success"; indexed: IndexedEvent[] }
+  | { type: "failure"; message: string };
+
+function fetchReducer(_state: FetchState, action: FetchAction): FetchState {
+  switch (action.type) {
+    case "retry":   return { status: "loading" };
+    case "success": return { status: "ok", indexed: action.indexed };
+    case "failure": return { status: "error", message: action.message };
+  }
+}
+
+// ─── loading skeleton ─────────────────────────────────────────────────────────
+
+function LoadingSkeleton() {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div
+          key={i}
+          className="border border-[#E3D28A]/20 bg-[#110B0B] p-4 space-y-4 animate-pulse"
+        >
+          <div className="w-full aspect-[2/1] bg-[#5A0E0B]/10 border border-[#E3D28A]/10" />
+          <div className="h-4 bg-[#E3D28A]/10 w-3/4 rounded-sm" />
+          <div className="h-3 bg-[#E3D28A]/10 w-1/2 rounded-sm" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── page ─────────────────────────────────────────────────────────────────────
+
 export default function EventsPage() {
-  const [events, setEvents] = useState<Event[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<"all" | "on-stage" | "off-stage">("all");
+  const [fetchState, dispatch] = useReducer(fetchReducer, { status: "loading" });
+  const [searchQuery, setSearchQuery]           = React.useState("");
+  const [selectedCategory, setSelectedCategory] = React.useState<CategoryFilter>("all");
 
-  const loadEvents = useCallback(async () => {
-    try {
-      const res = await fetch("/api/events");
-      if (!res.ok) {
-        throw new Error(`Failed to load events (Status: ${res.status})`);
-      }
-      const data = await res.json();
-      setEvents(data.events || []);
-      setError(null);
-    } catch (err) {
-      console.error("Error fetching events:", err);
-      setError(err instanceof Error ? err.message : "Failed to load events");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
+  // ── single fetch path ─────────────────────────────────────────────────────
+  // The effect depends on fetchState.status so it re-runs whenever "retry"
+  // flips status back to "loading".  All dispatch() calls happen asynchronously
+  // inside .then()/.catch(), never synchronously at the top of the effect body.
   useEffect(() => {
+    if (fetchState.status !== "loading") return;
+
     let ignore = false;
-    async function fetchData() {
-      try {
-        const res = await fetch("/api/events");
-        if (!res.ok) {
-          throw new Error(`Failed to load events (Status: ${res.status})`);
-        }
-        const data = await res.json();
-        if (!ignore) {
-          setEvents(data.events || []);
-          setError(null);
-        }
-      } catch (err) {
-        if (!ignore) {
-          console.error("Error fetching events:", err);
-          setError(err instanceof Error ? err.message : "Failed to load events");
-        }
-      } finally {
-        if (!ignore) {
-          setLoading(false);
-        }
-      }
-    }
 
-    fetchData();
-    return () => {
-      ignore = true;
-    };
-  }, []);
+    fetch("/api/events")
+      .then((res) => {
+        if (!res.ok) throw new Error(`Failed to load events (Status: ${res.status})`);
+        return res.json();
+      })
+      .then((data: { events: Event[] }) => {
+        if (!ignore) dispatch({ type: "success", indexed: buildIndex(data.events ?? []) });
+      })
+      .catch((err: unknown) => {
+        if (!ignore)
+          dispatch({
+            type: "failure",
+            message: err instanceof Error ? err.message : "Failed to load events",
+          });
+      });
 
-  const handleRetry = () => {
-    setLoading(true);
-    setError(null);
-    loadEvents();
-  };
+    return () => { ignore = true; };
+  }, [fetchState.status]);
 
-  const onStageCount = useMemo(
-    () => events.filter((e) => e.category === "on-stage").length,
-    [events]
-  );
-  const offStageCount = useMemo(
-    () => events.filter((e) => e.category === "off-stage").length,
-    [events]
+  // Retry: dispatch sets status → "loading" → effect re-runs
+  const handleRetry = () => dispatch({ type: "retry" });
+
+  // ── stable event list ─────────────────────────────────────────────────────
+  const indexed = useMemo(
+    () => (fetchState.status === "ok" ? fetchState.indexed : []),
+    [fetchState]
   );
 
-  const filteredEvents = useMemo(() => {
-    return events.filter((event) => {
+  // ── derived counts + filtered list — one iteration ────────────────────────
+  // onStageCount and offStageCount are computed in the same pass as
+  // filteredEvents so the array is never walked more than once per change.
+  const { filteredEvents, onStageCount, offStageCount } = useMemo(() => {
+    const q        = searchQuery.trim().toLowerCase();
+    const filtered: IndexedEvent[] = [];
+    let onStage    = 0;
+    let offStage   = 0;
+
+    for (const event of indexed) {
+      if (event.category === "on-stage") onStage++;
+      else                               offStage++;
+
       const matchesCategory =
         selectedCategory === "all" || event.category === selectedCategory;
-      const matchesSearch =
-        event.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        event.id.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesCategory && matchesSearch;
-    });
-  }, [events, selectedCategory, searchQuery]);
+      const matchesSearch = q === "" || event._searchKey.includes(q);
 
+      if (matchesCategory && matchesSearch) filtered.push(event);
+    }
+
+    return { filteredEvents: filtered, onStageCount: onStage, offStageCount: offStage };
+  }, [indexed, selectedCategory, searchQuery]);
+
+  const loading = fetchState.status === "loading";
+  const error   = fetchState.status === "error" ? fetchState.message : null;
+
+  // ── render ────────────────────────────────────────────────────────────────
   return (
     <div className="max-w-6xl mx-auto px-6 sm:px-8 pt-28 pb-16 space-y-10">
-      {/* Top Header */}
+
+      {/* Header */}
       <div className="space-y-4">
         <h1 className="font-display font-black text-4xl sm:text-5xl text-[#E3D28A] tracking-wider uppercase">
           EVENTS
         </h1>
 
         {/* Search & Category Filter */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 border-b border-[#E3D28A]/30 pb-5">
-          <div className="relative w-full sm:w-72">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#E3D28A]/40" />
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 border-b border-[#E3D28A]/30 pb-5 min-w-0">
+          <div className="relative w-full sm:w-72 shrink-0">
+            <Search
+              size={14}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#E3D28A]/40"
+              aria-hidden="true"
+            />
+            <label htmlFor="event-search" className="sr-only">Search events</label>
             <input
+              id="event-search"
               type="text"
               placeholder="Search events..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-[#110B0B] border border-[#E3D28A]/40 pl-9 pr-4 py-2 font-body text-xs text-[#E3D28A] placeholder-[#E3D28A]/30 focus:outline-none focus:border-[#E02E0B]"
+              className="w-full bg-[#110B0B] border border-[#E3D28A]/40 pl-8 pr-4 py-2 font-body text-xs text-[#E3D28A] placeholder-[#E3D28A]/30 focus:outline-none focus:border-[#E02E0B] transition-colors"
             />
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setSelectedCategory("all")}
-              className={`px-3.5 py-1.5 font-display text-[11px] uppercase tracking-wider transition-colors border ${
-                selectedCategory === "all"
-                  ? "bg-[#E02E0B] text-[#E3D28A] border-[#E02E0B] font-bold"
-                  : "text-[#E3D28A]/70 border-[#E3D28A]/30 hover:border-[#E3D28A]/60"
-              }`}
-            >
-              ALL ({loading ? "..." : events.length})
-            </button>
-            <button
-              onClick={() => setSelectedCategory("on-stage")}
-              className={`px-3.5 py-1.5 font-display text-[11px] uppercase tracking-wider transition-colors border ${
-                selectedCategory === "on-stage"
-                  ? "bg-[#E02E0B] text-[#E3D28A] border-[#E02E0B] font-bold"
-                  : "text-[#E3D28A]/70 border-[#E3D28A]/30 hover:border-[#E3D28A]/60"
-              }`}
-            >
-              ON-STAGE ({loading ? "..." : onStageCount})
-            </button>
-            <button
-              onClick={() => setSelectedCategory("off-stage")}
-              className={`px-3.5 py-1.5 font-display text-[11px] uppercase tracking-wider transition-colors border ${
-                selectedCategory === "off-stage"
-                  ? "bg-[#E02E0B] text-[#E3D28A] border-[#E02E0B] font-bold"
-                  : "text-[#E3D28A]/70 border-[#E3D28A]/30 hover:border-[#E3D28A]/60"
-              }`}
-            >
-              OFF-STAGE ({loading ? "..." : offStageCount})
-            </button>
+          <div className="flex items-center gap-2 flex-wrap" role="group" aria-label="Filter by category">
+            {(
+              [
+                { value: "all",       label: "ALL",       count: indexed.length },
+                { value: "on-stage",  label: "ON-STAGE",  count: onStageCount   },
+                { value: "off-stage", label: "OFF-STAGE", count: offStageCount  },
+              ] as const
+            ).map(({ value, label, count }) => (
+              <button
+                key={value}
+                onClick={() => setSelectedCategory(value)}
+                aria-pressed={selectedCategory === value}
+                className={`px-3.5 py-1.5 font-display text-[11px] uppercase tracking-wider transition-colors border ${
+                  selectedCategory === value
+                    ? "bg-[#E02E0B] text-[#E3D28A] border-[#E02E0B] font-bold"
+                    : "text-[#E3D28A]/70 border-[#E3D28A]/30 hover:border-[#E3D28A]/60"
+                }`}
+              >
+                {label} ({loading ? "..." : count})
+              </button>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* Loading Skeleton */}
-      {loading && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div
-              key={i}
-              className="border border-[#E3D28A]/20 bg-[#110B0B] p-4 space-y-4 animate-pulse"
-            >
-              <div className="w-full aspect-[2/1] bg-[#5A0E0B]/10 border border-[#E3D28A]/10" />
-              <div className="h-4 bg-[#E3D28A]/10 w-3/4 rounded-sm" />
-              <div className="h-3 bg-[#E3D28A]/10 w-1/2 rounded-sm" />
-            </div>
-          ))}
-        </div>
-      )}
+      {/* Loading */}
+      {loading && <LoadingSkeleton />}
 
-      {/* Error State */}
+      {/* Error */}
       {!loading && error && (
         <div className="border border-[#E02E0B]/40 bg-[#5A0E0B]/10 p-8 text-center space-y-4 max-w-lg mx-auto">
           <div className="flex justify-center text-[#E02E0B]">
@@ -185,7 +218,7 @@ export default function EventsPage() {
                 href={`/events/${event.id}`}
                 className="group border border-[#E3D28A]/40 bg-[#110B0B] hover:border-[#E3D28A] transition-colors flex flex-col justify-between"
               >
-                {/* Event Image if available, otherwise clean placeholder */}
+                {/* Image or placeholder */}
                 {event.imageUrl ? (
                   <div className="w-full aspect-[2/1] bg-[#5A0E0B]/20 border-b border-[#E3D28A]/25 overflow-hidden">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -201,7 +234,7 @@ export default function EventsPage() {
                   </div>
                 )}
 
-                {/* Event Card Content: Only Name, Category, Status */}
+                {/* Card body */}
                 <div className="p-4 space-y-3">
                   <h2 className="font-display font-bold text-base text-[#E3D28A] group-hover:text-[#E02E0B] transition-colors leading-tight">
                     {event.name}

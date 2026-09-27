@@ -44,7 +44,6 @@ body {
   background-color: #110B0B;
   color: #E3D28A;
   min-height: 100vh;
-  overflow-x: hidden;
   position: relative;
 }
 
@@ -80,4 +79,20 @@ body {
   display: block;
   width: 100%;
   height: 100%;
+}
+
+/* Reduced-motion: suppress CSS transitions and pulse animations for users
+   who have requested reduced motion at the OS level. Framer Motion and the
+   canvas-based effects (RippleDistortion, EmberParticles) handle their own
+   reduced-motion checks in JS; this block covers the Tailwind utility classes
+   (transition-colors, animate-pulse, etc.) that have no JS equivalent. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -7,7 +7,9 @@ import React, {
   useRef,
   useMemo,
   useId,
+  useSyncExternalStore,
 } from "react";
+import { createPortal } from "react-dom";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { TeamLeaderboardEntry, LeaderboardResponse } from "@/types/leaderboard";
 
@@ -53,14 +55,37 @@ interface ChartProps {
   hasResults: boolean;
 }
 
+/**
+ * Tooltip state uses viewport-relative pixel coords (clientX/Y) so the tooltip
+ * can be rendered as `position: fixed` and never escapes the viewport.
+ */
+interface TooltipState {
+  clientX: number;
+  clientY: number;
+  team: TeamLeaderboardEntry;
+}
+
+/** Tooltip width in px — must match the rendered box so clamping is accurate. */
+const TOOLTIP_W = 172;
+/** Tooltip height estimate — used to decide whether to show above or below. */
+const TOOLTIP_H = 100;
+
+// Detects client-side hydration without triggering the set-state-in-effect lint rule.
+// useSyncExternalStore returns the server snapshot ("false") on SSR, and the client
+// snapshot ("true") after hydration — with no extra render caused by setState.
+function useIsClient(): boolean {
+  return useSyncExternalStore(
+    () => () => {},   // subscribe (no-op — value never changes after mount)
+    () => true,       // client snapshot: mounted
+    () => false       // server snapshot: not mounted
+  );
+}
+
 function TeamBarChart({ teams, hasResults }: ChartProps) {
   const [hovered, setHovered] = useState<string | null>(null);
-  const [tooltip, setTooltip] = useState<{
-    x: number;
-    y: number;
-    team: TeamLeaderboardEntry;
-  } | null>(null);
-  const svgRef = useRef<SVGSVGElement>(null);
+  const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isClient = useIsClient();
   const uid = useId();
 
   // Respect prefers-reduced-motion
@@ -74,7 +99,7 @@ function TeamBarChart({ teams, hasResults }: ChartProps) {
     [teams]
   );
 
-  // Chart geometry
+  // Chart geometry (SVG units)
   const PAD_LEFT = 44;
   const PAD_RIGHT = 16;
   const PAD_TOP = 20;
@@ -94,35 +119,80 @@ function TeamBarChart({ teams, hasResults }: ChartProps) {
     return (pts / maxPts) * chartH;
   }
 
-  // Bar tap / hover handlers — work on both mouse and touch
-  function handleEnter(team: TeamLeaderboardEntry, barCx: number) {
-    setHovered(team.teamId);
-    // Tooltip position in SVG units — we'll translate to %-based in JSX
-    setTooltip({ x: barCx, y: 0, team });
+  /**
+   * Compute a viewport-safe fixed position for the tooltip.
+   * Prefers placing the tooltip above the cursor; falls back to below.
+   * Clamps horizontally so it never escapes the viewport.
+   */
+  function safeTooltipStyle(clientX: number, clientY: number): React.CSSProperties {
+    const vw = typeof window !== "undefined" ? window.innerWidth : 400;
+    const vh = typeof window !== "undefined" ? window.innerHeight : 800;
+
+    // Center horizontally on the cursor, then clamp to viewport edges
+    const rawLeft = clientX - TOOLTIP_W / 2;
+    const left = Math.max(8, Math.min(rawLeft, vw - TOOLTIP_W - 8));
+
+    // Show above cursor if there's room, else below
+    const top =
+      clientY - TOOLTIP_H - 12 > 0
+        ? clientY - TOOLTIP_H - 12
+        : Math.min(clientY + 16, vh - TOOLTIP_H - 8);
+
+    return { position: "fixed", left, top, zIndex: 50 };
   }
+
+  // Touch support: synthesise a clientX/Y from touch coordinates
+  function handleTouchStart(team: TeamLeaderboardEntry, e: React.TouchEvent<SVGGElement>) {
+    e.preventDefault();
+    const touch = e.touches[0];
+    if (touch) {
+      setHovered(team.teamId);
+      setTooltip({ clientX: touch.clientX, clientY: touch.clientY, team });
+    }
+  }
+
+  function handleMouseEnter(team: TeamLeaderboardEntry, e: React.MouseEvent<SVGGElement>) {
+    setHovered(team.teamId);
+    setTooltip({ clientX: e.clientX, clientY: e.clientY, team });
+  }
+
+  function handleMouseMove(team: TeamLeaderboardEntry, e: React.MouseEvent<SVGGElement>) {
+    if (hovered === team.teamId) {
+      setTooltip({ clientX: e.clientX, clientY: e.clientY, team });
+    }
+  }
+
   function handleLeave() {
     setHovered(null);
     setTooltip(null);
   }
 
+  // Dismiss on scroll so tooltip never lingers out-of-sync
+  useEffect(() => {
+    if (!tooltip) return;
+    const dismiss = () => setTooltip(null);
+    window.addEventListener("scroll", dismiss, { passive: true });
+    return () => window.removeEventListener("scroll", dismiss);
+  }, [tooltip]);
+
   return (
+    // overflow-hidden ensures no child can push the container wider
     <div
-      className="relative w-full select-none"
+      ref={containerRef}
+      className="relative w-full select-none overflow-hidden"
       aria-label="Team points bar chart"
       role="img"
     >
-      {/* Tooltip — absolutely positioned over chart */}
-      {tooltip && (
+      {/* Tooltip — rendered via portal to document.body so it escapes any
+          overflow:hidden / stacking-context ancestor in the chart wrapper */}
+      {isClient && tooltip && createPortal(
         <div
-          className="pointer-events-none absolute z-10"
-          style={{
-            // Position relative to SVG width; center on hovered bar
-            left: `clamp(8px, calc(${(tooltip.x / 100) * 100}% - 72px), calc(100% - 152px))`,
-            top: "10px",
-          }}
+          className="pointer-events-none"
+          style={safeTooltipStyle(tooltip.clientX, tooltip.clientY)}
         >
           <div
-            className="border border-[#E3D28A]/60 bg-[#110B0B] px-4 py-3 space-y-1 min-w-[140px]"
+            className="border border-[#E3D28A]/60 bg-[#110B0B] px-4 py-3 space-y-1"
+            style={{ width: TOOLTIP_W }}
             role="tooltip"
           >
             <div className="font-display font-black text-sm tracking-wider"
@@ -133,15 +203,15 @@ function TeamBarChart({ teams, hasResults }: ChartProps) {
               {hasResults ? fmtOrdinal(tooltip.team.rank) + " place" : "No data yet"}
             </div>
             <div className="border-t border-[#E3D28A]/20 pt-1.5 space-y-0.5 font-body text-[11px] text-[#E3D28A]/80">
-              <div className="flex justify-between gap-6">
+              <div className="flex justify-between gap-4">
                 <span>Points</span>
                 <span className="font-bold text-[#E3D28A]">
                   {hasResults ? tooltip.team.totalPoints : "—"}
                 </span>
               </div>
-              <div className="flex justify-between gap-6">
-                <span>1st / 2nd / 3rd</span>
-                <span className="text-[#E3D28A]/60">
+              <div className="flex justify-between gap-4">
+                <span className="shrink-0">1st / 2nd / 3rd</span>
+                <span className="text-[#E3D28A]/60 text-right">
                   {hasResults
                     ? `${tooltip.team.firstPlaceCount} / ${tooltip.team.secondPlaceCount} / ${tooltip.team.thirdPlaceCount}`
                     : "— / — / —"}
@@ -149,12 +219,12 @@ function TeamBarChart({ teams, hasResults }: ChartProps) {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {/* SVG chart — fully responsive via viewBox */}
+      {/* SVG chart — fully responsive via viewBox + w-full */}
       <svg
-        ref={svgRef}
         viewBox={`0 0 400 ${HEIGHT}`}
         preserveAspectRatio="xMidYMid meet"
         className="w-full"
@@ -232,14 +302,17 @@ function TeamBarChart({ teams, hasResults }: ChartProps) {
                 opacity,
                 transition: reducedMotion ? "none" : "opacity 0.2s ease",
               }}
-              onMouseEnter={() => handleEnter(team, (cx / 400) * 100)}
+              onMouseEnter={(e) => handleMouseEnter(team, e)}
+              onMouseMove={(e) => handleMouseMove(team, e)}
               onMouseLeave={handleLeave}
-              onFocus={() => handleEnter(team, (cx / 400) * 100)}
-              onBlur={handleLeave}
-              onTouchStart={(e) => {
-                e.preventDefault();
-                handleEnter(team, (cx / 400) * 100);
+              onFocus={(e) => {
+                // For keyboard focus, anchor tooltip near the SVG element
+                const rect = (e.currentTarget as SVGElement).getBoundingClientRect();
+                setHovered(team.teamId);
+                setTooltip({ clientX: rect.left + rect.width / 2, clientY: rect.top, team });
               }}
+              onBlur={handleLeave}
+              onTouchStart={(e) => handleTouchStart(team, e)}
               onTouchEnd={handleLeave}
               role="button"
               aria-label={`${team.teamName}: ${hasResults ? team.totalPoints + " points" : "no points yet"}`}
@@ -358,11 +431,11 @@ function LoadingSkeleton() {
   return (
     <div className="space-y-3" aria-label="Loading leaderboard">
       {/* Chart skeleton */}
-      <div className="border border-[#E3D28A]/20 bg-[#110B0B] p-6 animate-pulse h-[260px] flex items-end gap-6 justify-center">
+      <div className="border border-[#E3D28A]/20 bg-[#110B0B] p-6 animate-pulse h-[260px] flex items-end gap-4 justify-center overflow-hidden">
         {[60, 80, 45, 70].map((h, i) => (
           <div
             key={i}
-            className="bg-[#E3D28A]/10 w-14 rounded-sm"
+            className="bg-[#E3D28A]/10 w-12 sm:w-14 rounded-sm flex-shrink-0"
             style={{ height: `${h}%` }}
           />
         ))}
@@ -408,38 +481,46 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
 
 function StandingsTable({ teams, hasResults }: { teams: TeamLeaderboardEntry[]; hasResults: boolean }) {
   return (
-    <div className="border border-[#E3D28A]/40 bg-[#110B0B] overflow-x-auto">
-      <table className="w-full text-left font-body text-xs sm:text-sm border-collapse" aria-label="Leaderboard standings">
+    // overflow-x-auto provides internal scroll for the table only — the wrapper
+    // itself is constrained by the page's max-w container, so the page never scrolls.
+    // min-w-0 w-full prevent the flex/grid child from over-stretching on narrow viewports.
+    <div className="border border-[#E3D28A]/40 bg-[#110B0B] overflow-x-auto min-w-0 w-full">
+      <table
+        className="min-w-full text-left font-body text-xs sm:text-sm border-collapse"
+        aria-label="Leaderboard standings"
+      >
         <thead>
           <tr className="border-b border-[#E3D28A]/30 font-display text-[11px] sm:text-xs tracking-wider text-[#E3D28A]/70 uppercase">
-            <th className="py-3.5 px-5">Position</th>
-            <th className="py-3.5 px-5">Team</th>
-            <th className="py-3.5 px-5 text-right">Points</th>
-            <th className="py-3.5 px-5 text-right">1st</th>
-            <th className="py-3.5 px-5 text-right">2nd</th>
-            <th className="py-3.5 px-5 text-right">3rd</th>
+            <th className="py-3.5 px-3 sm:px-5 whitespace-nowrap">Position</th>
+            <th className="py-3.5 px-3 sm:px-5 whitespace-nowrap">Team</th>
+            <th className="py-3.5 px-3 sm:px-5 text-right whitespace-nowrap">Points</th>
+            <th className="py-3.5 px-3 sm:px-5 text-right whitespace-nowrap">1st</th>
+            <th className="py-3.5 px-3 sm:px-5 text-right whitespace-nowrap">2nd</th>
+            <th className="py-3.5 px-3 sm:px-5 text-right whitespace-nowrap">3rd</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-[#E3D28A]/15">
           {teams.map((team) => (
             <tr key={team.teamId} className="hover:bg-[#5A0E0B]/20 transition-colors">
-              <td className="py-3 px-5 font-display font-bold text-[#E02E0B]">
+              <td className="py-3 px-3 sm:px-5 font-display font-bold text-[#E02E0B] whitespace-nowrap">
                 {hasResults ? formatRank(team.rank) : "—"}
               </td>
-              <td className="py-3 px-5 font-display font-bold tracking-wider"
-                style={{ color: teamColor(team.teamId) }}>
+              <td
+                className="py-3 px-3 sm:px-5 font-display font-bold tracking-wider whitespace-nowrap"
+                style={{ color: teamColor(team.teamId) }}
+              >
                 {team.teamName}
               </td>
-              <td className="py-3 px-5 text-right font-display font-bold text-[#E3D28A]">
+              <td className="py-3 px-3 sm:px-5 text-right font-display font-bold text-[#E3D28A] whitespace-nowrap">
                 {hasResults ? team.totalPoints : "—"}
               </td>
-              <td className="py-3 px-5 text-right text-[#E3D28A]/70">
+              <td className="py-3 px-3 sm:px-5 text-right text-[#E3D28A]/70 whitespace-nowrap">
                 {hasResults ? team.firstPlaceCount : "—"}
               </td>
-              <td className="py-3 px-5 text-right text-[#E3D28A]/70">
+              <td className="py-3 px-3 sm:px-5 text-right text-[#E3D28A]/70 whitespace-nowrap">
                 {hasResults ? team.secondPlaceCount : "—"}
               </td>
-              <td className="py-3 px-5 text-right text-[#E3D28A]/70">
+              <td className="py-3 px-3 sm:px-5 text-right text-[#E3D28A]/70 whitespace-nowrap">
                 {hasResults ? team.thirdPlaceCount : "—"}
               </td>
             </tr>
@@ -454,30 +535,45 @@ function StandingsTable({ teams, hasResults }: { teams: TeamLeaderboardEntry[]; 
 
 function CategoryBreakdown({ teams, hasResults }: { teams: TeamLeaderboardEntry[]; hasResults: boolean }) {
   return (
-    <div className="border border-[#E3D28A]/40 bg-[#110B0B] overflow-x-auto">
-      <table className="w-full text-left font-body text-xs sm:text-sm border-collapse" aria-label="Points breakdown by category">
+    <div className="border border-[#E3D28A]/40 bg-[#110B0B] overflow-x-auto min-w-0 w-full">
+      <table
+        className="min-w-full text-left font-body text-xs sm:text-sm border-collapse"
+        aria-label="Points breakdown by category"
+      >
         <thead>
           <tr className="border-b border-[#E3D28A]/30 font-display text-[11px] sm:text-xs tracking-wider text-[#E3D28A]/70 uppercase">
-            <th className="py-3.5 px-5">Team</th>
-            <th className="py-3.5 px-5 text-right">Group</th>
-            <th className="py-3.5 px-5 text-right">Duo</th>
-            <th className="py-3.5 px-5 text-right">Solo</th>
-            <th className="py-3.5 px-5 text-right">Off-Stage</th>
-            <th className="py-3.5 px-5 text-right">Total</th>
+            <th className="py-3.5 px-3 sm:px-5 whitespace-nowrap">Team</th>
+            <th className="py-3.5 px-3 sm:px-5 text-right whitespace-nowrap">Group</th>
+            <th className="py-3.5 px-3 sm:px-5 text-right whitespace-nowrap">Duo</th>
+            <th className="py-3.5 px-3 sm:px-5 text-right whitespace-nowrap">Solo</th>
+            <th className="py-3.5 px-3 sm:px-5 text-right whitespace-nowrap">Off-Stage</th>
+            <th className="py-3.5 px-3 sm:px-5 text-right whitespace-nowrap">Total</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-[#E3D28A]/15">
           {teams.map((team) => (
             <tr key={team.teamId} className="hover:bg-[#5A0E0B]/20 transition-colors">
-              <td className="py-3 px-5 font-display font-bold tracking-wider"
-                style={{ color: teamColor(team.teamId) }}>
+              <td
+                className="py-3 px-3 sm:px-5 font-display font-bold tracking-wider whitespace-nowrap"
+                style={{ color: teamColor(team.teamId) }}
+              >
                 {team.teamName}
               </td>
-              <td className="py-3 px-5 text-right text-[#E3D28A]/70">{hasResults ? team.groupPoints : "—"}</td>
-              <td className="py-3 px-5 text-right text-[#E3D28A]/70">{hasResults ? team.duoPoints : "—"}</td>
-              <td className="py-3 px-5 text-right text-[#E3D28A]/70">{hasResults ? team.soloPoints : "—"}</td>
-              <td className="py-3 px-5 text-right text-[#E3D28A]/70">{hasResults ? team.offStagePoints : "—"}</td>
-              <td className="py-3 px-5 text-right font-display font-bold text-[#E3D28A]">{hasResults ? team.totalPoints : "—"}</td>
+              <td className="py-3 px-3 sm:px-5 text-right text-[#E3D28A]/70 whitespace-nowrap">
+                {hasResults ? team.groupPoints : "—"}
+              </td>
+              <td className="py-3 px-3 sm:px-5 text-right text-[#E3D28A]/70 whitespace-nowrap">
+                {hasResults ? team.duoPoints : "—"}
+              </td>
+              <td className="py-3 px-3 sm:px-5 text-right text-[#E3D28A]/70 whitespace-nowrap">
+                {hasResults ? team.soloPoints : "—"}
+              </td>
+              <td className="py-3 px-3 sm:px-5 text-right text-[#E3D28A]/70 whitespace-nowrap">
+                {hasResults ? team.offStagePoints : "—"}
+              </td>
+              <td className="py-3 px-3 sm:px-5 text-right font-display font-bold text-[#E3D28A] whitespace-nowrap">
+                {hasResults ? team.totalPoints : "—"}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -532,11 +628,12 @@ export default function LeaderboardPage() {
   const hasResults = teams.some((t) => t.totalPoints > 0);
 
   return (
-    <div className="max-w-4xl mx-auto px-6 sm:px-8 pt-28 pb-16 space-y-12">
+    // min-w-0 prevents the flex child from over-stretching on narrow viewports
+    <div className="w-full min-w-0 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-16 space-y-12">
 
       {/* Title */}
-      <div className="space-y-1.5">
-        <h1 className="font-display font-black text-4xl sm:text-5xl text-[#E3D28A] tracking-wider uppercase">
+      <div className="space-y-1.5 min-w-0">
+        <h1 className="font-display font-black text-3xl sm:text-4xl lg:text-5xl text-[#E3D28A] tracking-wide sm:tracking-wider uppercase leading-tight">
           LEADERBOARD
         </h1>
         <p className="font-body text-xs sm:text-sm text-[#E3D28A]/70">
@@ -554,7 +651,7 @@ export default function LeaderboardPage() {
       {!loading && !error && data && (
         <>
           {/* ── Visual graph — centerpiece ── */}
-          <div className="space-y-1">
+          <div className="space-y-1 min-w-0">
             <div className="flex items-baseline justify-between">
               <h2 className="font-display text-xs tracking-widest text-[#E3D28A]/60 uppercase">
                 Points Comparison
@@ -566,7 +663,8 @@ export default function LeaderboardPage() {
               )}
             </div>
 
-            <div className="border border-[#E3D28A]/30 bg-[#110B0B] px-4 pt-4 pb-2">
+            {/* overflow-hidden here ensures the SVG and its container never push the page wide */}
+            <div className="border border-[#E3D28A]/30 bg-[#110B0B] px-4 pt-4 pb-2 overflow-hidden">
               <TeamBarChart teams={teams} hasResults={hasResults} />
             </div>
 
@@ -578,7 +676,7 @@ export default function LeaderboardPage() {
           </div>
 
           {/* ── Standings table ── */}
-          <div className="space-y-2">
+          <div className="space-y-2 min-w-0">
             <h2 className="font-display text-xs tracking-widest text-[#E3D28A]/60 uppercase">
               Standings
             </h2>
@@ -586,7 +684,7 @@ export default function LeaderboardPage() {
           </div>
 
           {/* ── Category breakdown ── */}
-          <div className="space-y-2">
+          <div className="space-y-2 min-w-0">
             <h2 className="font-display text-xs tracking-widest text-[#E3D28A]/60 uppercase">
               Points by Category
             </h2>

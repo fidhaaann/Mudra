@@ -18,7 +18,10 @@ export default function HomePage() {
   return (
     <div className="flex flex-col w-full">
       {/* 1. HERO SECTION — exactly 1 complete viewport with full-screen WebGL ripples */}
-      <section className="relative w-full h-screen h-[100svh] h-[100dvh] overflow-hidden flex flex-col items-center justify-between border-b border-[#E3D28A]/30">
+      <section
+        aria-label="MUDRA 2026 hero"
+        className="relative w-full h-screen h-[100svh] h-[100dvh] overflow-hidden flex flex-col items-center justify-between border-b border-[#E3D28A]/30"
+      >
         {/* Full Page Ripple Distortion Canvas */}
         <div className="absolute inset-0 z-0 w-full h-full">
           <RippleDistortion
@@ -94,7 +97,7 @@ export default function HomePage() {
       </section>
 
       {/* 2. POINTS TABLE / TEAM STANDINGS SECTION */}
-      <section className="max-w-5xl mx-auto px-6 sm:px-8 py-20 w-full space-y-12">
+      <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20 w-full min-w-0 space-y-12">
         <div className="text-center space-y-2">
           <div className="font-display text-xs tracking-widest text-[#E02E0B] uppercase font-bold">
             MUDRA 2026 CHAMPIONSHIP
@@ -116,7 +119,7 @@ export default function HomePage() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.4, delay: idx * 0.08 }}
-              className="border border-[#E3D28A]/40 bg-[#110B0B] p-5 text-center space-y-3 relative hover:border-[#E3D28A] transition-colors shadow-lg shadow-black/50"
+              className="border border-[#E3D28A]/40 bg-[#110B0B] p-3 sm:p-5 text-center space-y-3 relative hover:border-[#E3D28A] transition-colors shadow-lg shadow-black/50"
             >
               <div className="font-display text-[10px] sm:text-xs tracking-widest text-[#E02E0B] uppercase font-bold">
                 {hasResults ? `RANK 0${standing.position}` : `TEAM 0${idx + 1}`}
@@ -139,37 +142,37 @@ export default function HomePage() {
         </div>
 
         {/* Points Breakdown Table */}
-        <div className="border border-[#E3D28A]/40 bg-[#110B0B] overflow-x-auto shadow-xl shadow-black/60">
-          <table className="w-full text-left font-body text-xs sm:text-sm border-collapse">
+        <div className="border border-[#E3D28A]/40 bg-[#110B0B] overflow-x-auto min-w-0 shadow-xl shadow-black/60">
+          <table className="min-w-full text-left font-body text-xs sm:text-sm border-collapse">
             <thead>
               <tr className="border-b border-[#E3D28A]/30 font-display text-[11px] sm:text-xs tracking-wider text-[#E3D28A]/70 uppercase bg-[#5A0E0B]/20">
-                <th className="py-4 px-5">POS</th>
-                <th className="py-4 px-5">HOUSE / TEAM</th>
-                <th className="py-4 px-5 text-right">TOTAL POINTS</th>
-                <th className="py-4 px-5 text-right">1ST PLACE</th>
-                <th className="py-4 px-5 text-right">2ND PLACE</th>
-                <th className="py-4 px-5 text-right">3RD PLACE</th>
+                <th className="py-3 px-3 sm:py-4 sm:px-5 whitespace-nowrap">POS</th>
+                <th className="py-3 px-3 sm:py-4 sm:px-5 whitespace-nowrap">HOUSE / TEAM</th>
+                <th className="py-3 px-3 sm:py-4 sm:px-5 text-right whitespace-nowrap">TOTAL</th>
+                <th className="py-3 px-3 sm:py-4 sm:px-5 text-right whitespace-nowrap">1ST</th>
+                <th className="py-3 px-3 sm:py-4 sm:px-5 text-right whitespace-nowrap">2ND</th>
+                <th className="py-3 px-3 sm:py-4 sm:px-5 text-right whitespace-nowrap">3RD</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E3D28A]/15 font-body">
               {standings.map((standing) => (
                 <tr key={standing.team.id} className="hover:bg-[#5A0E0B]/20 transition-colors">
-                  <td className="py-4 px-5 font-display font-bold text-[#E02E0B]">
+                  <td className="py-3 px-3 sm:py-4 sm:px-5 font-display font-bold text-[#E02E0B] whitespace-nowrap">
                     {hasResults ? `0${standing.position}` : "—"}
                   </td>
-                  <td className="py-4 px-5 font-display font-bold text-[#E3D28A] tracking-wider text-sm sm:text-base">
+                  <td className="py-3 px-3 sm:py-4 sm:px-5 font-display font-bold text-[#E3D28A] tracking-wider text-sm sm:text-base whitespace-nowrap">
                     {standing.team.name}
                   </td>
-                  <td className="py-4 px-5 text-right font-display font-bold text-[#E3D28A] text-base sm:text-lg">
+                  <td className="py-3 px-3 sm:py-4 sm:px-5 text-right font-display font-bold text-[#E3D28A] text-base sm:text-lg whitespace-nowrap">
                     {hasResults ? standing.totalPoints : "—"}
                   </td>
-                  <td className="py-4 px-5 text-right text-[#E3D28A]/80">
+                  <td className="py-3 px-3 sm:py-4 sm:px-5 text-right text-[#E3D28A]/80 whitespace-nowrap">
                     {hasResults ? standing.firstCount : "—"}
                   </td>
-                  <td className="py-4 px-5 text-right text-[#E3D28A]/80">
+                  <td className="py-3 px-3 sm:py-4 sm:px-5 text-right text-[#E3D28A]/80 whitespace-nowrap">
                     {hasResults ? standing.secondCount : "—"}
                   </td>
-                  <td className="py-4 px-5 text-right text-[#E3D28A]/80">
+                  <td className="py-3 px-3 sm:py-4 sm:px-5 text-right text-[#E3D28A]/80 whitespace-nowrap">
                     {hasResults ? standing.thirdCount : "—"}
                   </td>
                 </tr>
