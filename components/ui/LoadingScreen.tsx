@@ -49,18 +49,18 @@ function decodeImage(src: string): Promise<void> {
 // ─── stone progress bar ──────────────────────────────────────────────────────
 
 interface StoneBarProps {
-  progress: number;       // 0–1
+  progress: number;
   reducedMotion: boolean;
 }
 
 function StoneBar({ progress, reducedMotion }: StoneBarProps) {
-  const W       = 200;
-  const H       = 8;
-  const cx      = W / 2;
+  const W        = 200;
+  const H        = 8;
+  const cx       = W / 2;
   const halfFill = (progress * W) / 2;
-  const fillX   = cx - halfFill;
-  const fillW   = halfFill * 2;
-  const dur     = reducedMotion ? "none" : `${CROSSFADE_MS}ms ease-out`;
+  const fillX    = cx - halfFill;
+  const fillW    = halfFill * 2;
+  const dur      = reducedMotion ? "none" : `${CROSSFADE_MS}ms ease-out`;
 
   return (
     <div
@@ -86,7 +86,7 @@ function StoneBar({ progress, reducedMotion }: StoneBarProps) {
         <line x1={1}     y1={1}     x2={1}     y2={H - 1} stroke="#E3D28A" strokeWidth="0.5" strokeOpacity="0.20" />
         <line x1={W - 1} y1={1}     x2={W - 1} y2={H - 1} stroke="#000"    strokeWidth="0.5" strokeOpacity="0.40" />
 
-        {/* Pre-existing stone tick marks */}
+        {/* Stone tick marks */}
         {[25, 50, 75, 100, 125, 150, 175].map((tx) => (
           <line key={tx} x1={tx} y1={2} x2={tx} y2={H - 2}
             stroke="#E3D28A" strokeWidth="0.4" strokeOpacity="0.07" />
@@ -140,19 +140,16 @@ function StoneBar({ progress, reducedMotion }: StoneBarProps) {
 export const LoadingScreen: React.FC = () => {
   const shouldReduceMotion = useReducedMotion() ?? false;
 
-  // ready[i] = true once image i is decoded
   const [ready,   setReady]   = useState<boolean[]>(() => MUDRA_SRCS.map(() => false));
-  // current position in SEQUENCE_INDICES (0 … LAST_STEP)
   const [step,    setStep]    = useState(0);
-  // false → AnimatePresence plays the exit fade
   const [visible, setVisible] = useState(true);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Progress is derived purely from step — no extra state
+  // Progress derived from step — no extra state
   const barProgress = useMemo(() => step / LAST_STEP, [step]);
 
-  // ── batch-decode all 6 images before starting ────────────────────────────
+  // ── batch-decode all 6 images ─────────────────────────────────────────────
   useEffect(() => {
     document.body.style.overflow = "hidden";
     let cancelled = false;
@@ -166,10 +163,9 @@ export const LoadingScreen: React.FC = () => {
       document.body.style.overflow = "";
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  // Intentionally empty deps — runs once on mount only
   }, []);
 
-  // ── per-image belt-and-suspenders decode ─────────────────────────────────
+  // ── per-image decode (belt-and-suspenders) ────────────────────────────────
   useEffect(() => {
     const cleanups: (() => void)[] = [];
     MUDRA_SRCS.forEach((src, i) => {
@@ -188,26 +184,33 @@ export const LoadingScreen: React.FC = () => {
       cleanups.push(() => { img.onload = null; img.onerror = null; });
     });
     return () => cleanups.forEach((f) => f());
-  // Intentionally empty deps — runs once on mount only; ready is updated via callbacks
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── advance ───────────────────────────────────────────────────────────────
+  // ── advance step ──────────────────────────────────────────────────────────
   const advance = useCallback(() => {
     setStep((prev) => (prev < LAST_STEP ? prev + 1 : prev));
   }, []);
 
-  // ── sequencer effect ──────────────────────────────────────────────────────
-  // Runs whenever step or ready changes. Schedules the next advance, or
-  // triggers the exit when the last step is reached.
+  // ── begin exit ────────────────────────────────────────────────────────────
+  // Dispatches "mudra:loading-done" AT THE SAME MOMENT the overlay starts
+  // fading out, so FadeContent's hero reveal runs CONCURRENTLY with the
+  // 400 ms exit fade — eliminating the black-screen gap between loading
+  // overlay gone and hero visible.
+  const beginExit = useCallback(() => {
+    setVisible(false);
+    document.body.style.overflow = "";
+    window.dispatchEvent(new CustomEvent("mudra:loading-done"));
+  }, []);
+
+  // ── sequencer ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!visible) return;
 
     const holdTime = shouldReduceMotion ? HOLD_MS * 1.5 : HOLD_MS;
 
-    // Last frame reached — schedule exit
     if (step >= LAST_STEP) {
-      timerRef.current = setTimeout(() => beginExit(), holdTime + FINAL_HOLD_MS);
+      timerRef.current = setTimeout(beginExit, holdTime + FINAL_HOLD_MS);
       return () => { if (timerRef.current) clearTimeout(timerRef.current); };
     }
 
@@ -223,7 +226,6 @@ export const LoadingScreen: React.FC = () => {
       return () => { if (timerRef.current) clearTimeout(timerRef.current); };
     }
 
-    // Next image not yet decoded — poll at 16ms
     const poll = setInterval(() => {
       if (ready[nextImgIdx]) {
         clearInterval(poll);
@@ -236,19 +238,7 @@ export const LoadingScreen: React.FC = () => {
     };
   }, [step, ready, visible, shouldReduceMotion, advance, beginExit]);
 
-  // ── sequence exit helper ──────────────────────────────────────────────────
-  // Fires as soon as the fade begins — dispatching here lets FadeContent
-  // start its hero reveal concurrently with the overlay exit animation,
-  // eliminating the blank-background window that caused the black flash.
-  const beginExit = useCallback(() => {
-    setVisible(false);
-    document.body.style.overflow = "";
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("mudra:loading-done"));
-    }
-  }, []);
-
-  // ── active image index ────────────────────────────────────────────────────
+  // ── active image ──────────────────────────────────────────────────────────
   const activeIdx = useMemo(
     () => SEQUENCE_INDICES[Math.min(step, LAST_STEP)],
     [step]
@@ -266,7 +256,6 @@ export const LoadingScreen: React.FC = () => {
           className="fixed inset-0 z-[9999] bg-[#110B0B] flex flex-col items-center justify-center gap-6 sm:gap-8 select-none overflow-hidden"
           aria-hidden="true"
         >
-          {/* All 6 images mounted simultaneously — only active one is opaque */}
           <div
             className="relative flex-shrink-0"
             style={{
@@ -278,9 +267,6 @@ export const LoadingScreen: React.FC = () => {
               const isActive  = i === activeIdx;
               const isVisible = ready[i];
               return (
-                // Native <img> keeps decoded bitmap in memory across opacity
-                // transitions. Next.js <Image> would remount its internal
-                // element on src change, discarding the decoded bitmap.
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   key={src}

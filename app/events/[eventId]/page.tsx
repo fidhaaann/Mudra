@@ -98,7 +98,7 @@ export default function EventDetailPage() {
   const results = state.status === "ok"      ? state.results : null;
 
   return (
-    <div className="max-w-3xl lg:max-w-4xl xl:max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-16 space-y-8 min-w-0">
+    <div className="max-w-3xl lg:max-w-5xl xl:max-w-6xl mx-auto px-4 sm:px-6 lg:px-10 xl:px-12 pt-28 pb-16 space-y-8 min-w-0">
       {/* Back Link */}
       <Link
         href="/events"
@@ -148,7 +148,7 @@ export default function EventDetailPage() {
 
       {/* Event Details Content */}
       {!loading && !error && event && (
-        <div className="border border-[#E3D28A]/40 bg-[#110B0B] overflow-hidden space-y-6 p-6 sm:p-8">
+        <div className="border border-[#E3D28A]/40 bg-[#110B0B] overflow-hidden space-y-6 p-6 sm:p-10 lg:p-12">
           {/* Image or placeholder */}
           {event.imageUrl ? (
             <div className="w-full aspect-[21/9] bg-[#5A0E0B]/20 border border-[#E3D28A]/25 overflow-hidden">

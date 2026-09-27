@@ -103,6 +103,7 @@ export default function HomePage() {
     <div className="flex flex-col w-full">
       {/* 1. HERO SECTION — exactly 1 complete viewport with full-screen WebGL ripples */}
       <section
+        ref={heroRef}
         aria-label="MUDRA 2026 hero"
         className="relative w-full h-screen h-[100svh] h-[100dvh] overflow-hidden flex flex-col items-center justify-between border-b border-[#E3D28A]/30"
       >
@@ -190,7 +191,7 @@ export default function HomePage() {
       </section>
 
       {/* 2. POINTS TABLE / TEAM STANDINGS SECTION */}
-      <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20 w-full min-w-0 space-y-12">
+      <section ref={nextRef} className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20 w-full min-w-0 space-y-12">
         <div className="text-center space-y-2">
           <div className="font-display text-xs tracking-widest text-[#E02E0B] uppercase font-bold">
             MUDRA 2026 CHAMPIONSHIP

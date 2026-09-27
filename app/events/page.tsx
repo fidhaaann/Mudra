@@ -46,18 +46,45 @@ function fetchReducer(_state: FetchState, action: FetchAction): FetchState {
 }
 
 // ─── loading skeleton ─────────────────────────────────────────────────────────
+// Mirrors the actual event card structure exactly (image aspect + body + footer)
+// to prevent layout shift when real cards appear.
 
 function LoadingSkeleton() {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+    <div
+      className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5"
+      aria-label="Loading events"
+      aria-busy="true"
+    >
       {Array.from({ length: 6 }).map((_, i) => (
         <div
           key={i}
-          className="border border-[#E3D28A]/20 bg-[#110B0B] p-4 space-y-4 animate-pulse"
+          className="border border-[#E3D28A]/15 bg-[#110B0B] flex flex-col justify-between"
+          aria-hidden="true"
         >
-          <div className="w-full aspect-[2/1] bg-[#5A0E0B]/10 border border-[#E3D28A]/10" />
-          <div className="h-4 bg-[#E3D28A]/10 w-3/4 rounded-sm" />
-          <div className="h-3 bg-[#E3D28A]/10 w-1/2 rounded-sm" />
+          {/* Image placeholder — same aspect-[2/1] as real cards */}
+          <div className="w-full aspect-[2/1] bg-[#5A0E0B]/10 border-b border-[#E3D28A]/10" />
+
+          {/* Card body */}
+          <div className="p-4 space-y-3">
+            {/* Event name placeholder — two lines for long names */}
+            <div className="space-y-1.5">
+              <div
+                className="h-[14px] bg-[#E3D28A]/10 rounded-sm"
+                style={{ width: `${65 + ((i * 17) % 25)}%` }}
+              />
+              <div
+                className="h-[14px] bg-[#E3D28A]/8 rounded-sm"
+                style={{ width: `${35 + ((i * 13) % 20)}%` }}
+              />
+            </div>
+
+            {/* Card footer — category / status row */}
+            <div className="flex items-center justify-between pt-2 border-t border-[#E3D28A]/10">
+              <div className="h-[10px] w-16 bg-[#E3D28A]/10 rounded-sm" />
+              <div className="h-[10px] w-14 bg-[#E3D28A]/10 rounded-sm" />
+            </div>
+          </div>
         </div>
       ))}
     </div>
