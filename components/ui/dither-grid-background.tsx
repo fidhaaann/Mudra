@@ -160,9 +160,10 @@ function DitherGridCanvas({
     let width = 0;
     let height = 0;
     let currentTime = 0;
+    const resizeTarget = contained ? canvas.parentElement ?? canvas : canvas;
 
     const resize = () => {
-      const bounds = canvas.getBoundingClientRect();
+      const bounds = resizeTarget.getBoundingClientRect();
       const nextWidth = Math.max(1, bounds.width);
       const nextHeight = Math.max(1, bounds.height);
       const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
@@ -184,6 +185,8 @@ function DitherGridCanvas({
       // resolution and must not be included in the cell-size calculation.
       canvas.width = nextBufferWidth;
       canvas.height = nextBufferHeight;
+      canvas.style.width = `${nextWidth}px`;
+      canvas.style.height = `${nextHeight}px`;
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
       drawDither(context, width, height, currentTime);
     };
@@ -195,7 +198,7 @@ function DitherGridCanvas({
     };
 
     const observer = new ResizeObserver(resize);
-    observer.observe(canvas);
+    observer.observe(resizeTarget);
     window.addEventListener("resize", resize, { passive: true });
     window.visualViewport?.addEventListener("resize", resize, { passive: true });
     resize();
