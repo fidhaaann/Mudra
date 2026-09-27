@@ -1,7 +1,7 @@
 import { Event, PointsCategory } from "@/types/event";
 import { Team, TeamStanding, TeamId } from "@/types/team";
 import { EventResult } from "@/types/result";
-import { getPointsForRank } from "@/data/pointRules";
+import { getPointsForRank, POINT_RULES } from "@/data/pointRules";
 import { TEAMS } from "@/data/teams";
 import { RECORDED_RESULTS } from "@/data/mockResults";
 
@@ -20,64 +20,87 @@ export function getPointsForCategory(pointsCategory: PointsCategory, rank: 1 | 2
 }
 
 /**
+ * Returns the official points for a placement strictly from the scoring table.
+ * pointsCategory drives the score — the stored `pointsAwarded` value on any
+ * result row is NEVER used, preventing sheet data from overriding official rules.
+ */
+export function officialPoints(pointsCategory: PointsCategory, rank: 1 | 2 | 3): number {
+  return POINT_RULES[pointsCategory]?.[rank === 1 ? 'first' : rank === 2 ? 'second' : 'third'] ?? 0;
+}
+
+/**
  * Calculates standings for all teams based on verified event results.
+ *
+ * SCORING RULE: Points are always recalculated from the event's pointsCategory
+ * using the official scoring table.  The `pointsAwarded` field on each
+ * PodiumPlacement is ignored — it must never override the official table.
+ *
+ * RANKING RULE: Standard competition ranking — teams with equal totalPoints
+ * share the same rank.  There is NO secondary tie-breaker (no firstCount,
+ * no secondCount).  Equal totals produce equal ranks.
  */
 export function calculateTeamStandings(
   teams: Team[] = TEAMS,
-  results: Record<string, EventResult> = RECORDED_RESULTS
+  results: Record<string, EventResult> = RECORDED_RESULTS,
+  events: Record<string, Pick<Event, "id" | "pointsCategory">> = {}
 ): TeamStanding[] {
   const standingsMap: Record<TeamId, { totalPoints: number; firstCount: number; secondCount: number; thirdCount: number }> = {
-    raaga: { totalPoints: 0, firstCount: 0, secondCount: 0, thirdCount: 0 },
-    agni: { totalPoints: 0, firstCount: 0, secondCount: 0, thirdCount: 0 },
+    raaga:  { totalPoints: 0, firstCount: 0, secondCount: 0, thirdCount: 0 },
+    agni:   { totalPoints: 0, firstCount: 0, secondCount: 0, thirdCount: 0 },
     tarang: { totalPoints: 0, firstCount: 0, secondCount: 0, thirdCount: 0 },
-    utsav: { totalPoints: 0, firstCount: 0, secondCount: 0, thirdCount: 0 },
+    utsav:  { totalPoints: 0, firstCount: 0, secondCount: 0, thirdCount: 0 },
   };
 
-  // Aggregate points and placements from verified results
   Object.values(results).forEach((result) => {
+    // Look up the event's official pointsCategory; fall back gracefully if missing
+    const eventMeta = events[result.eventId];
+
     result.placements.forEach((placement) => {
+      const pos = placement.placement;
+      if (pos !== 1 && pos !== 2 && pos !== 3) return; // skip invalid positions
+
       const teamStats = standingsMap[placement.teamId];
-      if (teamStats) {
-        teamStats.totalPoints += placement.pointsAwarded;
-        if (placement.placement === 1) teamStats.firstCount += 1;
-        if (placement.placement === 2) teamStats.secondCount += 1;
-        if (placement.placement === 3) teamStats.thirdCount += 1;
-      }
+      if (!teamStats) return; // skip unrecognised teams
+
+      // ALWAYS recalculate from official scoring table — never trust pointsAwarded
+      const pts = eventMeta
+        ? officialPoints(eventMeta.pointsCategory, pos)
+        : placement.pointsAwarded; // legacy fallback when no event meta supplied
+
+      teamStats.totalPoints += pts;
+      if (pos === 1) teamStats.firstCount++;
+      else if (pos === 2) teamStats.secondCount++;
+      else if (pos === 3) teamStats.thirdCount++;
     });
   });
 
   const standings: TeamStanding[] = teams.map((team) => {
-    const stats = standingsMap[team.id] || { totalPoints: 0, firstCount: 0, secondCount: 0, thirdCount: 0 };
+    const stats = standingsMap[team.id] ?? { totalPoints: 0, firstCount: 0, secondCount: 0, thirdCount: 0 };
     return {
-      team: {
-        ...team,
-        totalPoints: stats.totalPoints,
-      },
-      totalPoints: stats.totalPoints,
-      firstCount: stats.firstCount,
-      secondCount: stats.secondCount,
-      thirdCount: stats.thirdCount,
-      position: 1,
+      team: { ...team, totalPoints: stats.totalPoints },
+      totalPoints:  stats.totalPoints,
+      firstCount:   stats.firstCount,
+      secondCount:  stats.secondCount,
+      thirdCount:   stats.thirdCount,
+      position: 1, // assigned below
     };
   });
 
   const hasAnyPoints = standings.some((s) => s.totalPoints > 0);
 
   if (hasAnyPoints) {
-    standings.sort((a, b) => {
-      if (b.totalPoints !== a.totalPoints) {
-        return b.totalPoints - a.totalPoints;
-      }
-      return b.firstCount - a.firstCount;
-    });
+    // Sort by totalPoints descending ONLY — no secondary tie-breaker
+    standings.sort((a, b) => b.totalPoints - a.totalPoints);
+  }
 
-    standings.forEach((item, index) => {
-      item.position = index + 1;
-    });
-  } else {
-    standings.forEach((item, index) => {
-      item.position = index + 1;
-    });
+  // Standard competition ranking: equal points → same rank.
+  // Next distinct rank = number of teams ranked strictly above + 1.
+  for (let i = 0; i < standings.length; i++) {
+    if (i === 0 || standings[i].totalPoints !== standings[i - 1].totalPoints) {
+      standings[i].position = i + 1;
+    } else {
+      standings[i].position = standings[i - 1].position;
+    }
   }
 
   return standings;
