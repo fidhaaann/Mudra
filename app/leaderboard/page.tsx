@@ -12,6 +12,7 @@ import React, {
 import { createPortal } from "react-dom";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { TeamLeaderboardEntry, LeaderboardResponse } from "@/types/leaderboard";
+import { getTeamColor } from "@/lib/team-colors";
 
 // ─── constants ───────────────────────────────────────────────────────────────
 
@@ -24,16 +25,8 @@ const COLORS = {
   goldFaint: "rgba(227,210,138,0.06)",
 } as const;
 
-// Per-team accent colours — all from the MUDRA palette, no gradients
-const TEAM_COLORS: Record<string, string> = {
-  raaga: "#E02E0B",   // fire
-  agni: "#E3D28A",    // gold
-  tarang: "#EE8814",  // highlight amber
-  utsav: "#C0A96E",   // muted gold
-};
-
 function teamColor(teamId: string): string {
-  return TEAM_COLORS[teamId.toLowerCase()] ?? COLORS.gold;
+  return getTeamColor(teamId);
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────

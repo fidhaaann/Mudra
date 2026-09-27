@@ -5,6 +5,7 @@ import "./globals.css";
 import { Navbar } from "@/components/navigation/Navbar";
 import { Footer } from "@/components/navigation/Footer";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
+import { DitherGridBackground } from "@/components/ui/dither-grid-background";
 
 const wardrum = localFont({
   src: "./fonts/Wardrum-Bold.otf",
@@ -59,10 +60,13 @@ export default function RootLayout({
         <LoadingScreen />
         {/* Navbar is fixed/floating — positioned via CSS */}
         <Navbar />
-        <main className="flex-1 flex flex-col w-full">
-          {children}
-        </main>
-        <Footer />
+        <div className="relative isolate flex min-h-full flex-1 flex-col overflow-hidden">
+          <DitherGridBackground contained startAfterHero />
+          <main className="relative z-[1] flex-1 flex flex-col w-full">
+            {children}
+          </main>
+          <Footer />
+        </div>
       </body>
     </html>
   );

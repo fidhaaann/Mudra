@@ -37,8 +37,18 @@ html {
   background-color: #110B0B;
   color: #E3D28A;
   font-family: var(--font-body-sans);
-  scroll-behavior: smooth;
 }
+
+.team-name-glow {
+  transition: filter 180ms ease, text-shadow 180ms ease;
+  will-change: filter;
+}
+
+.team-name-glow:hover {
+  filter: drop-shadow(0 0 4px var(--team-glow)) drop-shadow(0 0 10px var(--team-glow));
+  text-shadow: 0 0 6px var(--team-glow), 0 0 14px var(--team-glow);
+}
+
 
 body {
   background-color: #110B0B;

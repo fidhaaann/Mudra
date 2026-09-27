@@ -8,6 +8,8 @@ import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { calculateTeamStandings } from "@/lib/scoring";
 import FadeContent from "@/components/ui/FadeContent";
+import { NeonDither } from "@/components/ui/neon-dither";
+import { getTeamColor } from "@/lib/team-colors";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -41,43 +43,28 @@ export default function HomePage() {
   }, []);
 
   // ── Hero → next-section scroll depth transition ──────────────────────────
-  // Hero section subtly scales down and drifts upward as the user scrolls.
   // The next section (standings) rises up from a slight yPercent offset.
   // Pure GSAP transforms — zero React state per frame, no layout properties.
   const heroRef     = useRef<HTMLElement>(null);
   const nextRef     = useRef<HTMLElement>(null);
+  const nextContentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     // Respect prefers-reduced-motion
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
     const hero = heroRef.current;
-    const next = nextRef.current;
-    if (!hero || !next) return;
+    const nextContent = nextContentRef.current;
+    if (!hero || !nextContent) return;
 
     const isMobile = window.innerWidth < 768;
 
     // Initial state: set the next section slightly below its natural position.
-    // willChange promotes these elements to their own compositor layers.
-    gsap.set(hero, { willChange: "transform" });
-    gsap.set(next, { yPercent: isMobile ? 2 : 4, willChange: "transform" });
+    // Animate only the standings contents so the page section itself stays in place.
+    gsap.set(nextContent, { yPercent: isMobile ? 2 : 4, willChange: "transform" });
 
-    // Hero scrolls away: scales very gently down and drifts up
-    const heroTween = gsap.to(hero, {
-      scale:    isMobile ? 0.98 : 0.96,
-      yPercent: isMobile ? -3  : -5,
-      ease:     "none",
-      scrollTrigger: {
-        trigger:             hero,
-        start:               "top top",
-        end:                 "bottom top",
-        scrub:               1.4,
-        invalidateOnRefresh: true,
-      },
-    });
-
-    // Next section rises up to its natural position as hero scrolls away
-    const nextTween = gsap.to(next, {
+    // Standings contents rise up to their natural position as hero scrolls away
+    const nextTween = gsap.to(nextContent, {
       yPercent: 0,
       ease:     "none",
       scrollTrigger: {
@@ -90,12 +77,9 @@ export default function HomePage() {
     });
 
     return () => {
-      heroTween.scrollTrigger?.kill();
-      heroTween.kill();
       nextTween.scrollTrigger?.kill();
       nextTween.kill();
-      gsap.set(hero, { clearProps: "scale,yPercent,willChange" });
-      gsap.set(next, { clearProps: "yPercent,willChange" });
+      gsap.set(nextContent, { clearProps: "yPercent,willChange" });
     };
   }, []);
 
@@ -145,13 +129,20 @@ export default function HomePage() {
           className="relative z-[2] flex flex-col items-center text-center px-4 sm:px-6 md:px-8 max-w-4xl mx-auto my-auto select-none w-full"
           style={{ opacity: 0 }}
         >
+          {/* Institute Logo */}
+          <Image
+            src="/images/mudras/Tist small-white 2.png"
+            alt="TocH Institute of Science & Technology"
+            width={2000}
+            height={290}
+            priority
+            loading="eager"
+            sizes="(max-width: 768px) 55vw, 240px"
+            className="mb-[clamp(0.75rem,2svh,1.25rem)] h-auto w-[min(55vw,240px)] object-contain"
+          />
+
           {/* Prominent Mudra Logo Emblem — increased size */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.85, y: -10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
-            className="relative flex justify-center w-full"
-          >
+          <div className="relative flex justify-center w-full">
             <div className="w-[clamp(170px,min(60vw,38svh),460px)] flex justify-center">
               <Image
                 src="/images/mudra-logo.png"
@@ -163,35 +154,42 @@ export default function HomePage() {
                 className="w-full h-auto max-h-[clamp(160px,36svh,420px)] object-contain filter drop-shadow-[0_0_50px_rgba(224,46,11,0.6)] drop-shadow-[0_10px_25px_rgba(0,0,0,0.95)]"
               />
             </div>
-          </motion.div>
+          </div>
 
           {/* Year — Increased size */}
-          <motion.div
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.15 }}
-            className="font-display text-[clamp(2rem,5.5svh,4.25rem)] font-black tracking-[clamp(0.25em,1.5vw,0.45em)] text-[#E3D28A] mt-[clamp(0.3rem,1.5svh,0.9rem)]"
-          >
+          <div className="font-display text-[clamp(2rem,5.5svh,4.25rem)] font-black tracking-[clamp(0.25em,1.5vw,0.45em)] text-[#E3D28A] mt-[clamp(0.3rem,1.5svh,0.9rem)]">
             2026
-          </motion.div>
+          </div>
 
           {/* Cultural Tagline — Increased size */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.25 }}
-            className="mt-[clamp(0.6rem,2.2svh,1.5rem)] font-body text-[clamp(0.95rem,2.2svh,1.35rem)] text-[#E3D28A]/90 max-w-[clamp(300px,85vw,42rem)] leading-relaxed tracking-wide"
-          >
+          <div className="mt-[clamp(0.6rem,2.2svh,1.5rem)] font-body text-[clamp(0.95rem,2.2svh,1.35rem)] text-[#E3D28A]/90 max-w-[clamp(300px,85vw,42rem)] leading-relaxed tracking-wide">
             <p>A thousand gestures, a thousand stories, one celebration of art.</p>
-          </motion.div>
+          </div>
         </FadeContent>
+
+        {/* Gentle scroll cue — moves the page without changing hero positioning */}
+        <motion.button
+          type="button"
+          aria-label="Scroll to team standings"
+          animate={{ y: [0, 6, 0], opacity: [0.55, 1, 0.55] }}
+          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+          onClick={() =>
+            nextRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+          }
+          className="absolute bottom-5 left-1/2 z-[2] -translate-x-1/2 text-[#E3D28A]/80 transition-colors hover:text-[#E3D28A] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#E3D28A]"
+        >
+          <span aria-hidden="true" className="text-2xl leading-none">
+            ↓
+          </span>
+        </motion.button>
 
         {/* Bottom Spacer */}
         <div className="pb-6 shrink-0 pointer-events-none" />
       </section>
 
       {/* 2. POINTS TABLE / TEAM STANDINGS SECTION */}
-      <section ref={nextRef} className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20 w-full min-w-0 space-y-12">
+      <section id="team-standings" ref={nextRef} className="relative z-[1] max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20 w-full min-w-0">
+        <div ref={nextContentRef} className="relative z-[1] space-y-12">
         <div className="text-center space-y-2">
           <div className="font-display text-xs tracking-widest text-[#E02E0B] uppercase font-bold">
             MUDRA 2026 CHAMPIONSHIP
@@ -215,20 +213,25 @@ export default function HomePage() {
               transition={{ duration: 0.4, delay: idx * 0.08 }}
               className="border border-[#E3D28A]/40 bg-[#110B0B] p-3 sm:p-5 text-center space-y-3 relative hover:border-[#E3D28A] transition-colors shadow-lg shadow-black/50"
             >
-              <div className="font-display text-[10px] sm:text-xs tracking-widest text-[#E02E0B] uppercase font-bold">
-                {hasResults ? `RANK 0${standing.position}` : `TEAM 0${idx + 1}`}
-              </div>
-
-              <h3 className="font-display font-black text-lg sm:text-xl text-[#E3D28A] tracking-wider">
-                {standing.team.name}
-              </h3>
-
-              <div className="border-t border-[#E3D28A]/25 pt-3">
-                <div className="font-display font-black text-3xl sm:text-4xl text-[#E3D28A]">
-                  {hasResults ? standing.totalPoints : "—"}
+              <div className="relative z-10 space-y-3">
+                <div className="font-display text-[10px] sm:text-xs tracking-widest text-[#E02E0B] uppercase font-bold">
+                  {hasResults ? `RANK 0${standing.position}` : `TEAM 0${idx + 1}`}
                 </div>
-                <div className="font-body text-[10px] text-[#E3D28A]/50 tracking-wider uppercase mt-1">
-                  TOTAL POINTS
+
+                <h3
+                  className="font-display font-black text-lg sm:text-xl tracking-wider"
+                  style={{ color: getTeamColor(standing.team.id) }}
+                >
+                  {standing.team.name}
+                </h3>
+
+                <div className="border-t border-[#E3D28A]/25 pt-3">
+                  <div className="font-display font-black text-3xl sm:text-4xl text-[#E3D28A]">
+                    {hasResults ? standing.totalPoints : "—"}
+                  </div>
+                  <div className="font-body text-[10px] text-[#E3D28A]/50 tracking-wider uppercase mt-1">
+                    TOTAL POINTS
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -239,35 +242,71 @@ export default function HomePage() {
         <div className="border border-[#E3D28A]/40 bg-[#110B0B] overflow-x-auto min-w-0 shadow-xl shadow-black/60">
           <table className="min-w-full text-left font-body text-xs sm:text-sm border-collapse">
             <thead>
-              <tr className="border-b border-[#E3D28A]/30 font-display text-[11px] sm:text-xs tracking-wider text-[#E3D28A]/70 uppercase bg-[#5A0E0B]/20">
-                <th className="py-3 px-3 sm:py-4 sm:px-5 whitespace-nowrap">POS</th>
-                <th className="py-3 px-3 sm:py-4 sm:px-5 whitespace-nowrap">HOUSE / TEAM</th>
-                <th className="py-3 px-3 sm:py-4 sm:px-5 text-right whitespace-nowrap">TOTAL</th>
-                <th className="py-3 px-3 sm:py-4 sm:px-5 text-right whitespace-nowrap">1ST</th>
-                <th className="py-3 px-3 sm:py-4 sm:px-5 text-right whitespace-nowrap">2ND</th>
-                <th className="py-3 px-3 sm:py-4 sm:px-5 text-right whitespace-nowrap">3RD</th>
+              <tr className="relative border-b border-[#E3D28A]/30 font-display text-[11px] sm:text-xs tracking-wider text-[#E3D28A]/70 uppercase">
+                <td
+                  colSpan={6}
+                  aria-hidden="true"
+                  className="absolute inset-0 block p-0 pointer-events-none"
+                >
+                  <NeonDither color="#5A0E0B" intensity={0.25} opacity={0.18} />
+                </td>
+                <th className="relative z-10 py-3 px-3 sm:py-4 sm:px-5 whitespace-nowrap">POS</th>
+                <th className="relative z-10 py-3 px-3 sm:py-4 sm:px-5 whitespace-nowrap">HOUSE / TEAM</th>
+                <th className="relative z-10 py-3 px-3 sm:py-4 sm:px-5 text-right whitespace-nowrap">TOTAL</th>
+                <th className="relative z-10 py-3 px-3 sm:py-4 sm:px-5 text-right whitespace-nowrap">1ST</th>
+                <th className="relative z-10 py-3 px-3 sm:py-4 sm:px-5 text-right whitespace-nowrap">2ND</th>
+                <th className="relative z-10 py-3 px-3 sm:py-4 sm:px-5 text-right whitespace-nowrap">3RD</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E3D28A]/15 font-body">
               {standings.map((standing) => (
-                <tr key={standing.team.id} className="hover:bg-[#5A0E0B]/20 transition-colors">
-                  <td className="py-3 px-3 sm:py-4 sm:px-5 font-display font-bold text-[#E02E0B] whitespace-nowrap">
-                    {hasResults ? `0${standing.position}` : "—"}
+                <tr key={standing.team.id} className="relative hover:bg-[#5A0E0B]/20 transition-colors">
+                  <td
+                    colSpan={6}
+                    aria-hidden="true"
+                    className="absolute inset-0 block p-0 pointer-events-none"
+                  >
+                    <NeonDither
+                      color={getTeamColor(standing.team.id)}
+                      intensity={0.4}
+                      opacity={0.2}
+                    />
                   </td>
-                  <td className="py-3 px-3 sm:py-4 sm:px-5 font-display font-bold text-[#E3D28A] tracking-wider text-sm sm:text-base whitespace-nowrap">
-                    {standing.team.name}
+                  <td className="relative py-3 px-3 sm:py-4 sm:px-5 font-display font-bold text-[#FFF7E6] whitespace-nowrap">
+                    <span className="relative z-10">
+                      {hasResults ? `0${standing.position}` : "—"}
+                    </span>
                   </td>
-                  <td className="py-3 px-3 sm:py-4 sm:px-5 text-right font-display font-bold text-[#E3D28A] text-base sm:text-lg whitespace-nowrap">
-                    {hasResults ? standing.totalPoints : "—"}
+                  <td
+                    className="relative py-3 px-3 sm:py-4 sm:px-5 font-display font-bold tracking-wider text-sm sm:text-base whitespace-nowrap"
+                    style={{ color: getTeamColor(standing.team.id) }}
+                  >
+                    <span
+                      className="relative z-10 inline-block team-name-glow"
+                      style={{ "--team-glow": getTeamColor(standing.team.id) } as React.CSSProperties}
+                    >
+                      {standing.team.name}
+                    </span>
                   </td>
-                  <td className="py-3 px-3 sm:py-4 sm:px-5 text-right text-[#E3D28A]/80 whitespace-nowrap">
-                    {hasResults ? standing.firstCount : "—"}
+                  <td className="relative py-3 px-3 sm:py-4 sm:px-5 text-right font-display font-bold text-[#FFF7E6] text-base sm:text-lg whitespace-nowrap">
+                    <span className="relative z-10">
+                      {hasResults ? standing.totalPoints : "—"}
+                    </span>
                   </td>
-                  <td className="py-3 px-3 sm:py-4 sm:px-5 text-right text-[#E3D28A]/80 whitespace-nowrap">
-                    {hasResults ? standing.secondCount : "—"}
+                  <td className="relative py-3 px-3 sm:py-4 sm:px-5 text-right text-[#FFF7E6]/90 whitespace-nowrap">
+                    <span className="relative z-10">
+                      {hasResults ? standing.firstCount : "—"}
+                    </span>
                   </td>
-                  <td className="py-3 px-3 sm:py-4 sm:px-5 text-right text-[#E3D28A]/80 whitespace-nowrap">
-                    {hasResults ? standing.thirdCount : "—"}
+                  <td className="relative py-3 px-3 sm:py-4 sm:px-5 text-right text-[#FFF7E6]/90 whitespace-nowrap">
+                    <span className="relative z-10">
+                      {hasResults ? standing.secondCount : "—"}
+                    </span>
+                  </td>
+                  <td className="relative py-3 px-3 sm:py-4 sm:px-5 text-right text-[#FFF7E6]/90 whitespace-nowrap">
+                    <span className="relative z-10">
+                      {hasResults ? standing.thirdCount : "—"}
+                    </span>
                   </td>
                 </tr>
               ))}
@@ -280,8 +319,8 @@ export default function HomePage() {
             Standings will update automatically as verified results are published by the judging panel.
           </p>
         )}
+        </div>
       </section>
     </div>
   );
 }
-
