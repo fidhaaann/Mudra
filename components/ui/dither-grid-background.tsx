@@ -5,6 +5,8 @@ import { useEffect, useRef } from "react";
 
 const PALETTE = ["#110B0B", "#5A0E0B", "#E02E0B", "#EE8814", "#E3D28A"] as const;
 const DITHER_CELL_SIZE = 56;
+// Paint-only overscan covers Safari rubber-band space without adding document height.
+const VIEWPORT_OVERSCAN = "100%";
 const BAYER_4X4 = [
   [0, 8, 2, 10],
   [12, 4, 14, 6],
@@ -220,9 +222,16 @@ function DitherGridCanvas({
       ref={canvasRef}
       aria-hidden="true"
       className={
-        "fixed inset-0 z-0 size-full pointer-events-none opacity-[0.22]"
+        "fixed z-0 pointer-events-none opacity-[0.22]"
       }
-      style={{ top: 0 }}
+      style={{
+        width: `calc(100% + ${VIEWPORT_OVERSCAN} + ${VIEWPORT_OVERSCAN})`,
+        height: `calc(100% + ${VIEWPORT_OVERSCAN} + ${VIEWPORT_OVERSCAN})`,
+        top: `-${VIEWPORT_OVERSCAN}`,
+        right: `-${VIEWPORT_OVERSCAN}`,
+        bottom: `-${VIEWPORT_OVERSCAN}`,
+        left: `-${VIEWPORT_OVERSCAN}`,
+      }}
     />
   );
 }
