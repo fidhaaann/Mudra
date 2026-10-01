@@ -15,13 +15,15 @@
  * - One shared clock keeps every instance on the page in the same language.
  * - Off-screen / hidden-tab instances snap instead of animating.
  * - prefers-reduced-motion shows the static English mark.
+ * - Letter bodies share one height in both languages; Malayalam marks (്, the
+ *   tail of ഉ, …) overhang the box instead of shrinking the word.
  * - Fixed box size (max of both marks) → no layout shift.
  */
 
 import { memo, useEffect, useRef, useSyncExternalStore, type CSSProperties } from "react";
 import { gsap } from "gsap";
 import { cn } from "@/lib/utils";
-import type { Wordmark } from "@/lib/team-wordmarks";
+import { getTeamWordmarks, type Wordmark } from "@/lib/team-wordmarks";
 
 type Lang = "en" | "ml";
 
@@ -73,6 +75,15 @@ function useReducedMotion(): boolean {
   );
 }
 
+// ─── geometry ────────────────────────────────────────────────────────────────
+
+/** Size an artwork so its letter body is exactly `bodyH` em tall. */
+function measure(mark: Wordmark, bodyH: number) {
+  const [top, bottom] = mark.body ?? [0, 1];
+  const h = bodyH / (bottom - top);
+  return { w: mark.aspect * h, h, above: top * h, below: (1 - bottom) * h };
+}
+
 // ─── component ───────────────────────────────────────────────────────────────
 
 export interface TeamNameLanguageTransitionProps {
@@ -80,8 +91,13 @@ export interface TeamNameLanguageTransitionProps {
   malayalamName: string;
   english: Wordmark;
   malayalam: Wordmark;
-  /** Rendered height in em, so the mark scales with the surrounding text size. */
+  /**
+   * Letter-body height in em (the layout box height), so the mark scales with
+   * the surrounding text. Malayalam marks overhang this box.
+   */
   height?: number;
+  /** Horizontal alignment of each language's artwork within the shared box. */
+  align?: "start" | "center";
   /** Number of vertical shuffle strips. */
   strips?: number;
   className?: string;
@@ -92,15 +108,22 @@ function TeamNameLanguageTransition({
   malayalamName,
   english,
   malayalam,
-  height = 1.5,
+  height = 1.3,
+  align = "start",
   strips = 10,
   className,
 }: TeamNameLanguageTransitionProps) {
   const rootRef = useRef<HTMLSpanElement>(null);
   const reducedMotion = useReducedMotion();
 
-  const width = Math.max(english.aspect, malayalam.aspect) * height;
+  const en = measure(english, height);
+  const ml = measure(malayalam, height);
+  const above = Math.max(en.above, ml.above);
+  const frameH = above + height + Math.max(en.below, ml.below);
+  const width = Math.max(en.w, ml.w);
   const stripW = width / strips;
+  const offX = (m: typeof en) => (align === "center" ? (width - m.w) / 2 : 0);
+  const offY = (m: typeof en) => above - m.above;
 
   useEffect(() => {
     const root = rootRef.current;
@@ -192,38 +215,64 @@ function TeamNameLanguageTransition({
   const vars = {
     "--en-img": `url("${english.src}")`,
     "--ml-img": `url("${malayalam.src}")`,
-    "--en-size": `${english.aspect * height}em ${height}em`,
-    "--ml-size": `${malayalam.aspect * height}em ${height}em`,
+    "--en-size": `${en.w}em ${en.h}em`,
+    "--ml-size": `${ml.w}em ${ml.h}em`,
   } as CSSProperties;
 
   const cell =
-    "block h-1/2 w-full bg-no-repeat [background-image:var(--en-img)] [background-size:var(--en-size)] " +
-    "data-[lang=ml]:[background-image:var(--ml-img)] data-[lang=ml]:[background-size:var(--ml-size)]";
+    "block h-1/2 w-full bg-no-repeat " +
+    "[background-image:var(--en-img)] [background-size:var(--en-size)] [background-position:var(--en-pos)] " +
+    "data-[lang=ml]:[background-image:var(--ml-img)] data-[lang=ml]:[background-size:var(--ml-size)] " +
+    "data-[lang=ml]:[background-position:var(--ml-pos)]";
 
   return (
     <span
       ref={rootRef}
       role="img"
       aria-label={`${englishName} (${malayalamName})`}
-      className={cn("relative inline-block overflow-hidden align-middle", className)}
+      className={cn("relative inline-block align-middle", className)}
       style={{ ...vars, width: `${width}em`, height: `${height}em` }}
     >
-      {Array.from({ length: strips }, (_, i) => {
-        const pos = { backgroundPosition: `${-i * stripW}em 0` };
-        return (
-          <span
-            key={i}
-            data-track
-            className="absolute top-0 block h-[200%]"
-            style={{ left: `${i * stripW}em`, width: `${stripW}em` }}
-          >
-            <span data-front className={cell} style={pos} />
-            <span data-back className={cell} style={pos} />
-          </span>
-        );
-      })}
+      {/* Clipping frame: the body box plus room for overhanging marks. */}
+      <span
+        className="absolute left-0 block w-full overflow-hidden"
+        style={{ top: `${-above}em`, height: `${frameH}em` }}
+      >
+        {Array.from({ length: strips }, (_, i) => {
+          const pos = {
+            "--en-pos": `${offX(en) - i * stripW}em ${offY(en)}em`,
+            "--ml-pos": `${offX(ml) - i * stripW}em ${offY(ml)}em`,
+          } as CSSProperties;
+          return (
+            <span
+              key={i}
+              data-track
+              className="absolute top-0 block h-[200%]"
+              style={{ left: `${i * stripW}em`, width: `${stripW}em` }}
+            >
+              <span data-front className={cell} style={pos} />
+              <span data-back className={cell} style={pos} />
+            </span>
+          );
+        })}
+      </span>
     </span>
   );
 }
 
-export default memo(TeamNameLanguageTransition);
+const TeamNameLanguageTransitionMemo = memo(TeamNameLanguageTransition);
+export default TeamNameLanguageTransitionMemo;
+
+/** Team wordmark by id; falls back to the plain name for unknown ids. */
+export function TeamWordmark({
+  teamId,
+  teamName,
+  ...rest
+}: { teamId: string; teamName: string } & Pick<
+  TeamNameLanguageTransitionProps,
+  "height" | "align" | "className"
+>) {
+  const marks = getTeamWordmarks(teamId);
+  if (!marks) return <>{teamName}</>;
+  return <TeamNameLanguageTransitionMemo {...marks} {...rest} />;
+}

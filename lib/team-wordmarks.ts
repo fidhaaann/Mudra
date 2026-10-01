@@ -4,6 +4,12 @@ export interface Wordmark {
   src: string;
   /** Intrinsic width / height of the cropped artwork. */
   aspect: number;
+  /**
+   * Vertical band of the main letter body as fractions of the artwork height
+   * (excluding marks such as ് or the tail of ഉ). Bodies are drawn at the same
+   * height in every language so Malayalam matches the English cap height.
+   */
+  body?: [top: number, bottom: number];
 }
 
 export interface TeamWordmarks {
@@ -29,19 +35,19 @@ export const TEAM_WORDMARKS: Record<TeamId, TeamWordmarks> = {
     englishName: "AGNI",
     malayalamName: "അഗ്നി",
     english: { src: "/images/agni/agniE.webp", aspect: 333 / 160 },
-    malayalam: { src: "/images/agni/agniM.webp", aspect: 313 / 160 },
+    malayalam: { src: "/images/agni/agniM.webp", aspect: 313 / 160, body: [53 / 160, 1] },
   },
   tarang: {
     englishName: "TARANG",
     malayalamName: "തരംഗ്",
     english: { src: "/images/tarang/tarangE.webp", aspect: 552 / 160 },
-    malayalam: { src: "/images/tarang/tarangM.webp", aspect: 364 / 160 },
+    malayalam: { src: "/images/tarang/tarangM.webp", aspect: 364 / 160, body: [50 / 160, 1] },
   },
   utsav: {
     englishName: "UTSAV",
     malayalamName: "ഉത്സവ്",
     english: { src: "/images/utsav/utsavE.webp", aspect: 444 / 160 },
-    malayalam: { src: "/images/utsav/utsavM.webp", aspect: 300 / 160 },
+    malayalam: { src: "/images/utsav/utsavM.webp", aspect: 300 / 160, body: [43 / 160, 128 / 160] },
   },
 };
 
