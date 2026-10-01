@@ -13,6 +13,8 @@ import { createPortal } from "react-dom";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { TeamLeaderboardEntry, LeaderboardResponse } from "@/types/leaderboard";
 import { getTeamColor } from "@/lib/team-colors";
+import { getTeamWordmarks } from "@/lib/team-wordmarks";
+import TeamNameLanguageTransition from "@/components/ui/TeamNameLanguageTransition";
 
 // ─── constants ───────────────────────────────────────────────────────────────
 
@@ -30,6 +32,13 @@ function teamColor(teamId: string): string {
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
+
+/** English ↔ Malayalam team wordmark; falls back to the plain name for unknown ids. */
+function TeamName({ team }: { team: TeamLeaderboardEntry }) {
+  const marks = getTeamWordmarks(team.teamId);
+  if (!marks) return <>{team.teamName}</>;
+  return <TeamNameLanguageTransition {...marks} />;
+}
 
 function fmtOrdinal(n: number): string {
   const s = ["th", "st", "nd", "rd"];
@@ -186,7 +195,7 @@ function TeamBarChart({ teams, hasResults }: ChartProps) {
           >
             <div className="font-display font-black text-sm tracking-wider"
               style={{ color: teamColor(tooltip.team.teamId) }}>
-              {tooltip.team.teamName}
+              <TeamName team={tooltip.team} />
             </div>
             <div className="font-display text-[10px] tracking-widest text-[#E02E0B] uppercase">
               {hasResults ? fmtOrdinal(tooltip.team.rank) + " place" : "No data yet"}
@@ -498,7 +507,7 @@ function StandingsTable({ teams, hasResults }: { teams: TeamLeaderboardEntry[]; 
                 className="py-3 px-3 sm:px-5 font-display font-bold tracking-wider whitespace-nowrap"
                 style={{ color: teamColor(team.teamId) }}
               >
-                {team.teamName}
+                <TeamName team={team} />
               </td>
               <td className="py-3 px-3 sm:px-5 text-right font-display font-bold text-[#E3D28A] whitespace-nowrap">
                 {hasResults ? team.totalPoints : "—"}
@@ -546,7 +555,7 @@ function CategoryBreakdown({ teams, hasResults }: { teams: TeamLeaderboardEntry[
                 className="py-3 px-3 sm:px-5 font-display font-bold tracking-wider whitespace-nowrap"
                 style={{ color: teamColor(team.teamId) }}
               >
-                {team.teamName}
+                <TeamName team={team} />
               </td>
               <td className="py-3 px-3 sm:px-5 text-right text-[#E3D28A]/70 whitespace-nowrap">
                 {hasResults ? team.groupPoints : "—"}
