@@ -9,6 +9,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import FadeContent from "@/components/ui/FadeContent";
 import { NeonDither } from "@/components/ui/neon-dither";
 import { getTeamColor } from "@/lib/team-colors";
+import { TeamWordmark } from "@/components/ui/TeamNameLanguageTransition";
 import { LeaderboardResponse, TeamLeaderboardEntry } from "@/types/leaderboard";
 
 gsap.registerPlugin(ScrollTrigger);
@@ -265,7 +266,7 @@ export default function HomePage() {
                   className="font-display font-black text-lg sm:text-xl tracking-wider"
                   style={{ color: getTeamColor(standing.teamId) }}
                 >
-                  {standing.teamName}
+                  <TeamWordmark teamId={standing.teamId} teamName={standing.teamName} align="center" />
                 </h3>
 
                 <div className="border-t border-[#E3D28A]/25 pt-3">
@@ -328,7 +329,7 @@ export default function HomePage() {
                       className="relative z-10 inline-block team-name-glow"
                       style={{ "--team-glow": getTeamColor(standing.teamId) } as React.CSSProperties}
                     >
-                      {standing.teamName}
+                      <TeamWordmark teamId={standing.teamId} teamName={standing.teamName} />
                     </span>
                   </td>
                   <td className="relative py-3 px-3 sm:py-4 sm:px-5 text-right font-display font-bold text-[#FFF7E6] text-base sm:text-lg whitespace-nowrap">

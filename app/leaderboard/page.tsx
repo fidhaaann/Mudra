@@ -13,6 +13,7 @@ import { createPortal } from "react-dom";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { TeamLeaderboardEntry, LeaderboardResponse } from "@/types/leaderboard";
 import { getTeamColor } from "@/lib/team-colors";
+import { TeamWordmark } from "@/components/ui/TeamNameLanguageTransition";
 
 // ─── constants ───────────────────────────────────────────────────────────────
 
@@ -168,7 +169,7 @@ function TeamBarChart({ teams, hasResults }: ChartProps) {
     // overflow-hidden ensures no child can push the container wider
     <div
       ref={containerRef}
-      className="relative w-full select-none overflow-hidden"
+      className="relative w-full select-none overflow-hidden [container-type:inline-size]"
       aria-label="Team points bar chart"
       role="img"
     >
@@ -186,7 +187,7 @@ function TeamBarChart({ teams, hasResults }: ChartProps) {
           >
             <div className="font-display font-black text-sm tracking-wider"
               style={{ color: teamColor(tooltip.team.teamId) }}>
-              {tooltip.team.teamName}
+              <TeamWordmark teamId={tooltip.team.teamId} teamName={tooltip.team.teamName} />
             </div>
             <div className="font-display text-[10px] tracking-widest text-[#E02E0B] uppercase">
               {hasResults ? fmtOrdinal(tooltip.team.rank) + " place" : "No data yet"}
@@ -343,23 +344,7 @@ function TeamBarChart({ teams, hasResults }: ChartProps) {
                 />
               )}
 
-              {/* Team label */}
-              <text
-                x={cx}
-                y={PAD_TOP + chartH + 16}
-                textAnchor="middle"
-                fontSize={10}
-                fontWeight="700"
-                fontFamily="var(--font-display-serif)"
-                letterSpacing={1.5}
-                fill={hovered === team.teamId ? color : COLORS.gold}
-                fillOpacity={hovered === team.teamId ? 1 : 0.7}
-                style={{
-                  transition: reducedMotion ? "none" : "fill 0.2s, opacity 0.2s",
-                }}
-              >
-                {team.teamName}
-              </text>
+              {/* Team label — rendered as an HTML overlay below (wordmark artwork) */}
 
               {/* Points label above bar */}
               {hasResults && bh > 12 && (
@@ -410,6 +395,30 @@ function TeamBarChart({ teams, hasResults }: ChartProps) {
           </text>
         )}
       </svg>
+
+      {/* Team wordmark labels, positioned in viewBox units over the SVG.
+          Font size is 1/40 of the chart width, i.e. 10 viewBox units. */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 [font-size:2.5cqw]">
+        {teams.map((team, i) => {
+          const slotW = (400 - PAD_LEFT - PAD_RIGHT) / teams.length;
+          const cx = PAD_LEFT + slotW * i + slotW / 2;
+          const isActive = hovered === null || hovered === team.teamId;
+          return (
+            <div
+              key={team.teamId}
+              className="absolute -translate-x-1/2 -translate-y-1/2 leading-none"
+              style={{
+                left: `${(cx / 400) * 100}%`,
+                top: `${((PAD_TOP + chartH + 12) / HEIGHT) * 100}%`,
+                opacity: !isActive ? 0.22 : hovered === team.teamId ? 1 : 0.8,
+                transition: reducedMotion ? "none" : "opacity 0.2s ease",
+              }}
+            >
+              <TeamWordmark teamId={team.teamId} teamName={team.teamName} height={0.85} align="center" />
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -498,7 +507,7 @@ function StandingsTable({ teams, hasResults }: { teams: TeamLeaderboardEntry[]; 
                 className="py-3 px-3 sm:px-5 font-display font-bold tracking-wider whitespace-nowrap"
                 style={{ color: teamColor(team.teamId) }}
               >
-                {team.teamName}
+                <TeamWordmark teamId={team.teamId} teamName={team.teamName} />
               </td>
               <td className="py-3 px-3 sm:px-5 text-right font-display font-bold text-[#E3D28A] whitespace-nowrap">
                 {hasResults ? team.totalPoints : "—"}
@@ -546,7 +555,7 @@ function CategoryBreakdown({ teams, hasResults }: { teams: TeamLeaderboardEntry[
                 className="py-3 px-3 sm:px-5 font-display font-bold tracking-wider whitespace-nowrap"
                 style={{ color: teamColor(team.teamId) }}
               >
-                {team.teamName}
+                <TeamWordmark teamId={team.teamId} teamName={team.teamName} />
               </td>
               <td className="py-3 px-3 sm:px-5 text-right text-[#E3D28A]/70 whitespace-nowrap">
                 {hasResults ? team.groupPoints : "—"}
