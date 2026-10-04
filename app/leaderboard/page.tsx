@@ -14,6 +14,7 @@ import { AlertCircle, RefreshCw } from "lucide-react";
 import { TeamLeaderboardEntry, LeaderboardResponse } from "@/types/leaderboard";
 import { getTeamColor } from "@/lib/team-colors";
 import { TeamWordmark } from "@/components/ui/TeamNameLanguageTransition";
+import { AwardWinners } from "@/components/ui/AwardWinners";
 
 // ─── constants ───────────────────────────────────────────────────────────────
 
@@ -414,7 +415,7 @@ function TeamBarChart({ teams, hasResults }: ChartProps) {
                 transition: reducedMotion ? "none" : "opacity 0.2s ease",
               }}
             >
-              <TeamWordmark teamId={team.teamId} teamName={team.teamName} height={0.85} align="center" />
+              <TeamWordmark teamId={team.teamId} teamName={team.teamName} height={0.85} align="center" static />
             </div>
           );
         })}
@@ -702,6 +703,10 @@ export default function LeaderboardPage() {
           </p>
         </>
       )}
+
+      {/* Kalathilakam / Kalaprathibha — separate source (GET /api/awards),
+          shown regardless of the leaderboard request's state */}
+      <AwardWinners />
     </div>
   );
 }

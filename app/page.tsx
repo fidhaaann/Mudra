@@ -7,9 +7,9 @@ import { motion } from "framer-motion";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import FadeContent from "@/components/ui/FadeContent";
-import { NeonDither } from "@/components/ui/neon-dither";
 import { getTeamColor } from "@/lib/team-colors";
 import { TeamWordmark } from "@/components/ui/TeamNameLanguageTransition";
+import { AwardWinners } from "@/components/ui/AwardWinners";
 import { LeaderboardResponse, TeamLeaderboardEntry } from "@/types/leaderboard";
 
 gsap.registerPlugin(ScrollTrigger);
@@ -131,6 +131,8 @@ export default function HomePage() {
       <section
         ref={heroRef}
         aria-label="MUDRA hero"
+        // Opaque: lets the page dither background pause while this fills the viewport
+        data-dither-occluder
         className="relative w-full h-svh overflow-hidden flex flex-col items-center justify-between border-b border-[#E3D28A]/30"
       >
         {/* Full Page Ripple Distortion Canvas */}
@@ -171,17 +173,18 @@ export default function HomePage() {
           className="relative z-2 flex flex-col items-center text-center px-4 sm:px-6 md:px-8 max-w-4xl mx-auto my-auto select-none w-full"
           style={{ opacity: 0 }}
         >
-          {/* Prominent Mudra Logo Emblem — increased size */}
+          {/* MUDRA wordmark */}
           <div className="relative flex justify-center w-full">
-            <div className="w-[clamp(170px,min(60vw,38svh),460px)] flex justify-center">
+            <div className="w-[clamp(240px,min(80vw,70svh),640px)] flex justify-center">
               <Image
-                src="/images/mudra-logo.png"
-                alt="MUDRA Emblem"
-                width={585}
-                height={511}
+                src="/images/mudra-wordmark.png"
+                alt="MUDRA"
+                width={793}
+                height={228}
+                sizes="(max-width: 800px) 80vw, 640px"
                 priority
                 loading="eager"
-                className="w-full h-auto max-h-[clamp(160px,36svh,420px)] object-contain"
+                className="w-full h-auto max-h-[clamp(70px,20svh,190px)] object-contain"
                 style={{
                   filter:
                     "drop-shadow(0 0 32px rgba(224,46,11,0.32)) drop-shadow(0 10px 25px rgba(0,0,0,0.95))",
@@ -287,13 +290,6 @@ export default function HomePage() {
           <table className="min-w-full text-left font-body text-xs sm:text-sm border-collapse">
             <thead>
               <tr className="relative border-b border-[#E3D28A]/30 font-display text-[11px] sm:text-xs tracking-wider text-[#E3D28A]/70 uppercase">
-                <td
-                  colSpan={6}
-                  aria-hidden="true"
-                  className="absolute inset-0 block p-0 pointer-events-none"
-                >
-                  <NeonDither color="#5A0E0B" intensity={0.25} opacity={0.18} />
-                </td>
                 <th className="relative z-10 py-3 px-3 sm:py-4 sm:px-5 whitespace-nowrap">POS</th>
                 <th className="relative z-10 py-3 px-3 sm:py-4 sm:px-5 whitespace-nowrap">HOUSE / TEAM</th>
                 <th className="relative z-10 py-3 px-3 sm:py-4 sm:px-5 text-right whitespace-nowrap">TOTAL</th>
@@ -305,17 +301,6 @@ export default function HomePage() {
             <tbody className="divide-y divide-[#E3D28A]/15 font-body">
               {standings.map((standing) => (
                 <tr key={standing.teamId} className="relative hover:bg-[#5A0E0B]/20 transition-colors">
-                  <td
-                    colSpan={6}
-                    aria-hidden="true"
-                    className="absolute inset-0 block p-0 pointer-events-none"
-                  >
-                    <NeonDither
-                      color={getTeamColor(standing.teamId)}
-                      intensity={0.4}
-                      opacity={0.2}
-                    />
-                  </td>
                   <td className="relative py-3 px-3 sm:py-4 sm:px-5 font-display font-bold text-[#FFF7E6] whitespace-nowrap">
                     <span className="relative z-10">
                       {hasResults ? standing.rank : "—"}
@@ -325,10 +310,7 @@ export default function HomePage() {
                     className="relative py-3 px-3 sm:py-4 sm:px-5 font-display font-bold tracking-wider text-sm sm:text-base whitespace-nowrap"
                     style={{ color: getTeamColor(standing.teamId) }}
                   >
-                    <span
-                      className="relative z-10 inline-block team-name-glow"
-                      style={{ "--team-glow": getTeamColor(standing.teamId) } as React.CSSProperties}
-                    >
+                    <span className="relative z-10 inline-block">
                       <TeamWordmark teamId={standing.teamId} teamName={standing.teamName} />
                     </span>
                   </td>
@@ -363,6 +345,9 @@ export default function HomePage() {
             Standings will update automatically as verified results are published by the judging panel.
           </p>
         )}
+
+        {/* Kalathilakam / Kalaprathibha — separate source (GET /api/awards) */}
+        <AwardWinners />
         </div>
       </section>
     </div>
