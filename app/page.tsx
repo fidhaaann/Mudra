@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { getImageProps } from "next/image";
+import Image from "next/image";
 import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import { gsap } from "gsap";
@@ -13,26 +13,6 @@ import { AwardWinners } from "@/components/ui/AwardWinners";
 import { LeaderboardResponse, TeamLeaderboardEntry } from "@/types/leaderboard";
 
 gsap.registerPlugin(ScrollTrigger);
-
-// Hero logo art direction: the stacked dancer logo on phones (< 768px, where
-// the navbar collapses to its menu button), the wide wordmark above that.
-// One <picture>, so each device downloads only the logo it shows.
-const HERO_LOGO_WIDE = getImageProps({
-  src: "/images/mudra-wordmark.png",
-  alt: "MUDRA",
-  width: 793,
-  height: 228,
-  sizes: "(max-width: 800px) 80vw, 640px",
-}).props;
-const HERO_LOGO_PHONE = getImageProps({
-  src: "/images/mudra-logo-mobile.png",
-  alt: "MUDRA",
-  width: 994,
-  height: 748,
-  sizes: "min(72vw, 340px)",
-  loading: "eager",
-  fetchPriority: "high",
-}).props;
 
 const RippleDistortion = dynamic(
   () => import("@/components/ui/RippleDistortion"),
@@ -193,27 +173,23 @@ export default function HomePage() {
           className="relative z-2 flex flex-col items-center text-center px-4 sm:px-6 md:px-8 max-w-4xl mx-auto my-auto select-none w-full"
           style={{ opacity: 0 }}
         >
-          {/* MUDRA logo — stacked dancer logo on phones, wordmark from md up */}
+          {/* MUDRA logo (stacked dancer mark) */}
           <div className="relative flex justify-center w-full">
-            <div className="w-[clamp(180px,min(72vw,40svh),340px)] md:w-[clamp(240px,min(80vw,70svh),640px)] flex justify-center">
-              <picture className="contents">
-                <source
-                  media="(min-width: 768px)"
-                  srcSet={HERO_LOGO_WIDE.srcSet}
-                  sizes={HERO_LOGO_WIDE.sizes}
-                  width={HERO_LOGO_WIDE.width}
-                  height={HERO_LOGO_WIDE.height}
-                />
-                {/* eslint-disable-next-line jsx-a11y/alt-text -- alt comes from getImageProps */}
-                <img
-                  {...HERO_LOGO_PHONE}
-                  className="w-full h-auto aspect-994/748 md:aspect-793/228 max-h-[34svh] md:max-h-[clamp(70px,20svh,190px)] object-contain"
-                  style={{
-                    filter:
-                      "drop-shadow(0 0 32px rgba(224,46,11,0.32)) drop-shadow(0 10px 25px rgba(0,0,0,0.95))",
-                  }}
-                />
-              </picture>
+            <div className="w-[clamp(180px,min(72vw,40svh),340px)] md:w-[clamp(260px,min(46vw,46svh),440px)] flex justify-center">
+              <Image
+                src="/images/mudra-logo-dancer.png"
+                alt="MUDRA"
+                width={994}
+                height={748}
+                sizes="(max-width: 767px) min(72vw, 340px), 440px"
+                loading="eager"
+                fetchPriority="high"
+                className="w-full h-auto max-h-[34svh] md:max-h-[42svh] object-contain"
+                style={{
+                  filter:
+                    "drop-shadow(0 0 32px rgba(224,46,11,0.32)) drop-shadow(0 10px 25px rgba(0,0,0,0.95))",
+                }}
+              />
             </div>
           </div>
 

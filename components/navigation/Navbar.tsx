@@ -2,10 +2,17 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { getImageProps } from "next/image";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { MenuToggleIcon } from "./MenuToggleIcon";
-import { motion, useScroll, useMotionValueEvent } from "framer-motion";
+import {
+  AnimatePresence,
+  motion,
+  useMotionValueEvent,
+  useReducedMotion,
+  useScroll,
+  type Variants,
+} from "framer-motion";
 import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
@@ -16,27 +23,38 @@ const NAV_LINKS = [
   { href: "/team",        label: "TEAM"        },
 ];
 
-// Logo art direction: stacked dancer logo below md (where the links collapse
-// into the menu button), the wide wordmark from md up. A <picture> means each
-// device downloads only the logo it shows.
-const LOGO_WIDE = getImageProps({
-  src: "/images/mudra-wordmark.png",
-  alt: "MUDRA",
-  width: 98,
-  height: 28,
-}).props;
-const LOGO_PHONE = getImageProps({
-  src: "/images/mudra-logo-mobile.png",
-  alt: "MUDRA",
-  width: 48,
-  height: 36,
-  loading: "eager",
-  fetchPriority: "high",
-}).props;
+// Phone menu: the panel unrolls downward out of the navbar (top-anchored
+// clip reveal + slight drop), then the links follow in a short stagger.
+const EASE_OUT = [0.16, 1, 0.3, 1] as const;
+const DRAWER: Variants = {
+  closed: {
+    opacity: 0,
+    y: -10,
+    clipPath: "inset(0% 0% 100% 0% round 16px)",
+    transition: { duration: 0.22, ease: [0.4, 0, 1, 1] },
+  },
+  open: {
+    opacity: 1,
+    y: 0,
+    clipPath: "inset(0% 0% 0% 0% round 16px)",
+    transition: { duration: 0.42, ease: EASE_OUT, when: "beforeChildren", staggerChildren: 0.045 },
+  },
+};
+const DRAWER_ITEM: Variants = {
+  closed: { opacity: 0, y: -8, transition: { duration: 0.12 } },
+  open: { opacity: 1, y: 0, transition: { duration: 0.3, ease: EASE_OUT } },
+};
+// Reduced motion: a plain fade, no movement.
+const DRAWER_REDUCED: Variants = {
+  closed: { opacity: 0, transition: { duration: 0.15 } },
+  open: { opacity: 1, transition: { duration: 0.15 } },
+};
+const DRAWER_ITEM_REDUCED: Variants = { closed: { opacity: 1 }, open: { opacity: 1 } };
 
 export const Navbar: React.FC = () => {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const reducedMotion = useReducedMotion();
   const [hidden, setHidden] = useState(false);
 
   const { scrollY } = useScroll();
@@ -70,19 +88,15 @@ export const Navbar: React.FC = () => {
       <div className="glass-surface relative pointer-events-auto flex items-center justify-between gap-4 sm:gap-8 bg-[#110B0B]/85 backdrop-blur-md border border-[#E3D28A]/25 hover:border-[#E3D28A]/40 transition-colors shadow-2xl shadow-black/80 rounded-full px-4 py-2 sm:px-6 sm:py-2.5 max-w-4xl w-full sm:w-auto">
         {/* MUDRA Official Logo */}
         <Link href="/" className="group flex items-center py-0.5 shrink-0">
-          <picture className="contents">
-            <source
-              media="(min-width: 768px)"
-              srcSet={LOGO_WIDE.srcSet}
-              width={LOGO_WIDE.width}
-              height={LOGO_WIDE.height}
-            />
-            {/* eslint-disable-next-line jsx-a11y/alt-text -- alt comes from getImageProps */}
-            <img
-              {...LOGO_PHONE}
-              className="h-9 md:h-7 w-auto aspect-994/748 md:aspect-793/228 object-contain transition-transform duration-300 group-hover:scale-110"
-            />
-          </picture>
+          <Image
+            src="/images/mudra-logo-dancer.png"
+            alt="MUDRA"
+            width={48}
+            height={36}
+            loading="eager"
+            fetchPriority="high"
+            className="h-9 w-auto object-contain transition-transform duration-300 group-hover:scale-110"
+          />
         </Link>
 
         {/* Desktop Navigation Links */}
@@ -125,10 +139,17 @@ export const Navbar: React.FC = () => {
         </div>
 
         {/* Mobile Floating Drawer */}
+        <AnimatePresence>
         {mobileMenuOpen && (
-          <nav
+          <motion.nav
+            key="mobile-nav-drawer"
             id="mobile-nav-drawer"
             aria-label="Mobile navigation"
+            variants={reducedMotion ? DRAWER_REDUCED : DRAWER}
+            initial="closed"
+            animate="open"
+            exit="closed"
+            style={{ transformOrigin: "top" }}
             className="absolute top-full mt-3 left-0 right-0 bg-[#110B0B]/95 backdrop-blur-md border border-[#E3D28A]/25 rounded-2xl p-4 shadow-2xl shadow-black/90 space-y-1.5 md:hidden pointer-events-auto"
           >
             {NAV_LINKS.map((link) => {
@@ -138,8 +159,8 @@ export const Navbar: React.FC = () => {
                   : pathname === link.href ||
                     (link.href === "/team" && pathname === "/lookup");
               return (
+                <motion.div key={link.href} variants={reducedMotion ? DRAWER_ITEM_REDUCED : DRAWER_ITEM}>
                 <Link
-                  key={link.href}
                   href={link.href}
                   onClick={() => setMobileMenuOpen(false)}
                   className={cn(
@@ -151,10 +172,12 @@ export const Navbar: React.FC = () => {
                 >
                   {link.label}
                 </Link>
+                </motion.div>
               );
             })}
-          </nav>
+          </motion.nav>
         )}
+        </AnimatePresence>
       </div>
     </motion.header>
   );
