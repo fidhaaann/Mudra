@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
+import { getImageProps } from "next/image";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { motion, useScroll, useMotionValueEvent } from "framer-motion";
@@ -15,6 +15,24 @@ const NAV_LINKS = [
   { href: "/leaderboard", label: "LEADERBOARD" },
   { href: "/team",        label: "TEAM"        },
 ];
+
+// Logo art direction: stacked dancer logo below md (where the links collapse
+// into the menu button), the wide wordmark from md up. A <picture> means each
+// device downloads only the logo it shows.
+const LOGO_WIDE = getImageProps({
+  src: "/images/mudra-wordmark.png",
+  alt: "MUDRA",
+  width: 98,
+  height: 28,
+}).props;
+const LOGO_PHONE = getImageProps({
+  src: "/images/mudra-logo-mobile.png",
+  alt: "MUDRA",
+  width: 48,
+  height: 36,
+  loading: "eager",
+  fetchPriority: "high",
+}).props;
 
 export const Navbar: React.FC = () => {
   const pathname = usePathname();
@@ -52,15 +70,19 @@ export const Navbar: React.FC = () => {
       <div className="glass-surface relative pointer-events-auto flex items-center justify-between gap-4 sm:gap-8 bg-[#110B0B]/85 backdrop-blur-md border border-[#E3D28A]/25 hover:border-[#E3D28A]/40 transition-colors shadow-2xl shadow-black/80 rounded-full px-4 py-2 sm:px-6 sm:py-2.5 max-w-4xl w-full sm:w-auto">
         {/* MUDRA Official Logo */}
         <Link href="/" className="group flex items-center py-0.5 shrink-0">
-          <Image
-            src="/images/mudra-wordmark.png"
-            alt="MUDRA"
-            width={98}
-            height={28}
-            priority
-            loading="eager"
-            className="h-6 sm:h-7 w-auto object-contain transition-transform duration-300 group-hover:scale-110"
-          />
+          <picture className="contents">
+            <source
+              media="(min-width: 768px)"
+              srcSet={LOGO_WIDE.srcSet}
+              width={LOGO_WIDE.width}
+              height={LOGO_WIDE.height}
+            />
+            {/* eslint-disable-next-line jsx-a11y/alt-text -- alt comes from getImageProps */}
+            <img
+              {...LOGO_PHONE}
+              className="h-9 md:h-7 w-auto aspect-994/748 md:aspect-793/228 object-contain transition-transform duration-300 group-hover:scale-110"
+            />
+          </picture>
         </Link>
 
         {/* Desktop Navigation Links */}
@@ -78,7 +100,7 @@ export const Navbar: React.FC = () => {
                 className={cn(
                   "relative px-4 py-1.5 rounded-full font-display text-xs tracking-widest uppercase transition-all duration-200",
                   isActive
-                    ? "bg-[#5A0E0B] text-[#E02E0B] font-bold border border-[#E02E0B]/40 shadow-inner"
+                    ? "text-[#E02E0B] font-bold"
                     : "text-[#E3D28A]/80 hover:text-[#E3D28A] hover:bg-[#5A0E0B]/30 hover:scale-[1.03]"
                 )}
               >
@@ -123,7 +145,7 @@ export const Navbar: React.FC = () => {
                   className={cn(
                     "block px-4 py-2.5 rounded-xl font-display text-sm tracking-widest uppercase transition-colors",
                     isActive
-                      ? "bg-[#5A0E0B] text-[#E02E0B] font-bold border border-[#E02E0B]/40"
+                      ? "text-[#E02E0B] font-bold"
                       : "text-[#E3D28A]/80 hover:text-[#E3D28A] hover:bg-[#5A0E0B]/30"
                   )}
                 >

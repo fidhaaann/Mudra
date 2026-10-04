@@ -325,9 +325,31 @@ function DitherGridCanvas({
     };
     syncRef.current = sync;
 
+    // Size the canvas from a stable reference (the screen, or the viewport if
+    // it is ever larger) instead of the live viewport. Scrollbars appearing
+    // during page changes and mobile toolbars collapsing resize the viewport;
+    // with a viewport-relative box each of those re-centred the grid and
+    // visibly shifted the background. Anchored to the top-left with a
+    // fixed-size box, the pattern stays put and only its visible edge moves.
+    let refWidth = 0;
+    let refHeight = 0;
+    const layout = () => {
+      const nextRefWidth = Math.max(window.screen.width || 0, window.innerWidth);
+      const nextRefHeight = Math.max(window.screen.height || 0, window.innerHeight);
+      if (nextRefWidth === refWidth && nextRefHeight === refHeight) return;
+      refWidth = nextRefWidth;
+      refHeight = nextRefHeight;
+      canvas.style.left = `${-refWidth * PAINT_OVERSCAN}px`;
+      canvas.style.top = `${-refHeight * PAINT_OVERSCAN}px`;
+      canvas.style.width = `${refWidth * ELEMENT_SCALE}px`;
+      canvas.style.height = `${refHeight * ELEMENT_SCALE}px`;
+    };
+
     const observer = new ResizeObserver(resize);
     observer.observe(canvas);
+    window.addEventListener("resize", layout, { passive: true });
     document.addEventListener("visibilitychange", sync);
+    layout();
     resize();
     sync();
 
@@ -335,6 +357,7 @@ function DitherGridCanvas({
       running = false;
       cancelAnimationFrame(animationFrame);
       observer.disconnect();
+      window.removeEventListener("resize", layout);
       document.removeEventListener("visibilitychange", sync);
       syncRef.current = () => {};
     };

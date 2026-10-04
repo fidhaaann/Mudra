@@ -58,7 +58,7 @@ export function AwardWinners({ className }: { className?: string }) {
         {AWARDS.map(({ key, label }) => {
           const name = state.status === "ready" ? state.data[key] : null;
           return (
-            <div key={key} className="min-w-0 px-4 py-4 sm:px-6 sm:py-5 space-y-1.5">
+            <div key={key} className="min-w-0 px-4 py-4 sm:px-6 sm:py-5 space-y-1.5 text-center">
               <dt className="font-display text-[10px] sm:text-xs tracking-widest text-[#E02E0B] uppercase font-bold">
                 {label}
               </dt>
@@ -67,7 +67,7 @@ export function AwardWinners({ className }: { className?: string }) {
                 {state.status === "loading" ? (
                   <span
                     aria-hidden="true"
-                    className="block h-[1.375em] w-40 max-w-full bg-[#E3D28A]/10 animate-pulse motion-reduce:animate-none"
+                    className="block h-[1.375em] w-40 max-w-full mx-auto bg-[#E3D28A]/10 animate-pulse motion-reduce:animate-none"
                   />
                 ) : name ? (
                   name
