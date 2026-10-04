@@ -2,11 +2,10 @@
 
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
+import { effectDprCap, getPerfTier } from "@/lib/perf-tier";
 
 const PALETTE = ["#110B0B", "#5A0E0B", "#E02E0B", "#EE8814", "#E3D28A"] as const;
 const DITHER_CELL_SIZE = 56;
-// Paint-only overscan covers Safari rubber-band space without adding document height.
-const VIEWPORT_OVERSCAN = "100%";
 const BAYER_4X4 = [
   [0, 8, 2, 10],
   [12, 4, 14, 6],
@@ -48,57 +47,109 @@ function hexToRgb(hex: string): [number, number, number] {
   return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
 }
 
-function interpolateColor(amount: number): string {
-  const scaled = Math.max(0, Math.min(PALETTE.length - 1, amount));
-  const index = Math.min(PALETTE.length - 2, Math.floor(scaled));
-  const remainder = scaled - index;
-  const from = hexToRgb(PALETTE[index]);
-  const to = hexToRgb(PALETTE[index + 1]);
-  const rgb = from.map((channel, i) =>
-    Math.round(channel + (to[i] - channel) * remainder)
-  );
-  return `rgb(${rgb.join(",")})`;
+// ─── colour lookup ───────────────────────────────────────────────────────────
+// Tone → packed RGBA (ImageData byte order), precomputed once instead of
+// building an rgb() string per sub-pixel per frame. 256 steps per palette
+// segment keeps every channel within one level of the exact interpolation.
+
+const LUT_STEPS = 256;
+const MAX_TONE = PALETTE.length - 1;
+const LITTLE_ENDIAN = new Uint8Array(new Uint32Array([1]).buffer)[0] === 1;
+
+const COLOR_LUT = (() => {
+  const lut = new Uint32Array(MAX_TONE * LUT_STEPS + 1);
+  const rgb = PALETTE.map(hexToRgb);
+  for (let i = 0; i < lut.length; i++) {
+    const scaled = i / LUT_STEPS;
+    const index = Math.min(PALETTE.length - 2, Math.floor(scaled));
+    const remainder = scaled - index;
+    const [r, g, b] = rgb[index].map((channel, c) =>
+      Math.round(channel + (rgb[index + 1][c] - channel) * remainder)
+    );
+    lut[i] = LITTLE_ENDIAN
+      ? ((255 << 24) | (b << 16) | (g << 8) | r) >>> 0
+      : ((r << 24) | (g << 16) | (b << 8) | 255) >>> 0;
+  }
+  return lut;
+})();
+
+// Per-sub-pixel tone offset: Bayer threshold + diagonal bias (row-major 4×4).
+const SUB_OFFSETS = Float32Array.from({ length: 16 }, (_, i) => {
+  const subRow = i >> 2;
+  const subColumn = i & 3;
+  const threshold = (BAYER_4X4[subRow][subColumn] + 0.5) / 16;
+  return (threshold - 0.5) * (CONFIG.pixelDither / 100) + (subColumn - subRow) * 0.01;
+});
+
+const SUB_SIZE = DITHER_CELL_SIZE / 4;
+const GAP = Math.min(CONFIG.pixelGap / 10, SUB_SIZE * 0.3);
+
+// The pattern is defined over a virtual surface of (1 + 2 × 100%) of the
+// viewport per axis — the original paint overscan — so the grid geometry and
+// motion are unchanged. Only a smaller window around the viewport is painted.
+const VIRTUAL_SCALE = 3;
+const PAINT_OVERSCAN = 0.25; // fraction of the viewport painted beyond each edge
+const ELEMENT_SCALE = 1 + PAINT_OVERSCAN * 2;
+
+interface Field {
+  cols: number;
+  rows: number;
+  // Static per-cell terms (time-independent parts of the tone function)
+  baseTone: Float32Array;
+  waveX: Float32Array;
+  waveY: Float32Array;
+  // One pixel per sub-cell; scaled up with nearest-neighbour sampling
+  image: ImageData;
+  pixels: Uint32Array;
+  buffer: HTMLCanvasElement;
+  bufferContext: CanvasRenderingContext2D;
+  // Sub-cell gaps, rasterised once at backing-store resolution. Filling the
+  // ~800 anti-aliased gap rects every frame halved the frame rate at desktop
+  // sizes; blitting the finished layer costs one texture draw.
+  gapLayer: HTMLCanvasElement;
+  drawX: number;
+  drawY: number;
 }
 
-function drawDither(
-  context: CanvasRenderingContext2D,
-  width: number,
-  height: number,
-  time: number
-) {
-  context.clearRect(0, 0, width, height);
-  context.fillStyle = PALETTE[0];
-  context.fillRect(0, 0, width, height);
+function buildField(width: number, height: number, dpr: number): Field | null {
+  const virtualWidth = (width / ELEMENT_SCALE) * VIRTUAL_SCALE;
+  const virtualHeight = (height / ELEMENT_SCALE) * VIRTUAL_SCALE;
+  const offsetX = (virtualWidth - width) / 2;
+  const offsetY = (virtualHeight - height) / 2;
 
-  const pixelCols = Math.ceil(width / DITHER_CELL_SIZE);
-  const pixelRows = Math.ceil(height / DITHER_CELL_SIZE);
-  const ph = time * 0.71;
-  const amt = 0.6;
-  const dir = 1;
-  const spin = ph * dir;
-  const modulation = Math.sin(ph * 0.9 * dir) * 0.5 * amt;
-  const cellWidth = DITHER_CELL_SIZE;
-  const cellHeight = DITHER_CELL_SIZE;
-  const subPixelWidth = cellWidth / 4;
-  const subPixelHeight = cellHeight / 4;
+  const pixelCols = Math.ceil(virtualWidth / DITHER_CELL_SIZE);
+  const pixelRows = Math.ceil(virtualHeight / DITHER_CELL_SIZE);
+  const col0 = Math.max(0, Math.floor(offsetX / DITHER_CELL_SIZE));
+  const row0 = Math.max(0, Math.floor(offsetY / DITHER_CELL_SIZE));
+  const col1 = Math.min(pixelCols, Math.ceil((offsetX + width) / DITHER_CELL_SIZE));
+  const row1 = Math.min(pixelRows, Math.ceil((offsetY + height) / DITHER_CELL_SIZE));
+  const cols = col1 - col0;
+  const rows = row1 - row0;
+  if (cols <= 0 || rows <= 0) return null;
+
+  const buffer = document.createElement("canvas");
+  buffer.width = cols * 4;
+  buffer.height = rows * 4;
+  const bufferContext = buffer.getContext("2d");
+  if (!bufferContext) return null;
+  const image = bufferContext.createImageData(buffer.width, buffer.height);
+
   const angle = (CONFIG.pixelAngle * Math.PI) / 180;
   const cos = Math.cos(angle);
   const sin = Math.sin(angle);
+  const baseTone = new Float32Array(cols * rows);
+  const waveX = new Float32Array(cols * rows);
+  const waveY = new Float32Array(cols * rows);
 
-  for (let row = 0; row < pixelRows; row++) {
-    for (let column = 0; column < pixelCols; column++) {
-      const baseX = (column + 0.5) / pixelCols;
-      const baseY = (row + 0.5) / pixelRows;
-      const centeredX = baseX - CONFIG.centerX / 100;
-      const centeredY = baseY - CONFIG.centerY / 100;
+  for (let r = 0; r < rows; r++) {
+    const row = row0 + r;
+    for (let c = 0; c < cols; c++) {
+      const column = col0 + c;
+      const centeredX = (column + 0.5) / pixelCols - CONFIG.centerX / 100;
+      const centeredY = (row + 0.5) / pixelRows - CONFIG.centerY / 100;
       const rotatedX = centeredX * cos - centeredY * sin;
       const rotatedY = centeredX * sin + centeredY * cos;
       const distance = Math.sqrt(centeredX ** 2 + centeredY ** 2);
-      const wave = Math.sin(
-        rotatedX * CONFIG.scale * 0.12 +
-          Math.sin(rotatedY * CONFIG.wave + spin) * (CONFIG.distortion / 10) +
-          spin
-      );
       const arch = Math.max(
         0,
         1 -
@@ -108,36 +159,85 @@ function drawDither(
       );
       const grain = (hash(column, row) - 0.5) * (CONFIG.grain / 1000);
       const vignette = Math.max(0, 1 - distance * (CONFIG.vignette / 1.5));
-      const baseTone = 0.35 + wave * 0.12 + arch * 0.18 + vignette * 0.1 + grain;
+      const i = r * cols + c;
+      baseTone[i] = 0.35 + arch * 0.18 + vignette * 0.1 + grain;
+      waveX[i] = rotatedX * CONFIG.scale * 0.12;
+      waveY[i] = rotatedY * CONFIG.wave;
+    }
+  }
+
+  const drawX = col0 * DITHER_CELL_SIZE - offsetX;
+  const drawY = row0 * DITHER_CELL_SIZE - offsetY;
+  const gaps = new Path2D();
+  for (let k = 0; k <= cols * 4; k++) {
+    gaps.rect(drawX + k * SUB_SIZE - GAP, drawY, GAP * 2, rows * DITHER_CELL_SIZE);
+  }
+  for (let k = 0; k <= rows * 4; k++) {
+    gaps.rect(drawX, drawY + k * SUB_SIZE - GAP, cols * DITHER_CELL_SIZE, GAP * 2);
+  }
+  const gapLayer = document.createElement("canvas");
+  gapLayer.width = Math.max(1, Math.round(width * dpr));
+  gapLayer.height = Math.max(1, Math.round(height * dpr));
+  const gapContext = gapLayer.getContext("2d");
+  if (!gapContext) return null;
+  gapContext.setTransform(dpr, 0, 0, dpr, 0, 0);
+  gapContext.fillStyle = PALETTE[0];
+  gapContext.fill(gaps);
+
+  return {
+    cols, rows, baseTone, waveX, waveY,
+    image, pixels: new Uint32Array(image.data.buffer), buffer, bufferContext,
+    gapLayer, drawX, drawY,
+  };
+}
+
+function drawDither(
+  context: CanvasRenderingContext2D,
+  field: Field,
+  width: number,
+  height: number,
+  time: number
+) {
+  const { cols, rows, baseTone, waveX, waveY, pixels } = field;
+  const ph = time * 0.71;
+  const amt = 0.6;
+  const dir = 1;
+  const spin = ph * dir;
+  const modulation = Math.sin(ph * 0.9 * dir) * 0.5 * amt;
+  const distortion = CONFIG.distortion / 10;
+  const stride = cols * 4;
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const i = r * cols + c;
+      const wave = Math.sin(waveX[i] + Math.sin(waveY[i] + spin) * distortion + spin);
       const tone = Math.max(
         0,
-        Math.min(PALETTE.length - 1, baseTone * (PALETTE.length - 1) + modulation)
+        Math.min(MAX_TONE, (baseTone[i] + wave * 0.12) * MAX_TONE + modulation)
       );
-
-      for (let subRow = 0; subRow < 4; subRow++) {
-        for (let subColumn = 0; subColumn < 4; subColumn++) {
-          const threshold =
-            (BAYER_4X4[subRow][subColumn] + 0.5) / 16;
-          const diagonal = (subColumn - subRow) * 0.01;
-          const ditherTone = tone + (threshold - 0.5) * (CONFIG.pixelDither / 100) + diagonal;
-          const x = column * cellWidth + subColumn * subPixelWidth;
-          const y = row * cellHeight + subRow * subPixelHeight;
-          const gap = Math.min(
-            CONFIG.pixelGap / 10,
-            subPixelWidth * 0.3,
-            subPixelHeight * 0.3
-          );
-          context.fillStyle = interpolateColor(ditherTone);
-          context.fillRect(
-            x + gap,
-            y + gap,
-            Math.max(1, subPixelWidth - gap * 2),
-            Math.max(1, subPixelHeight - gap * 2)
-          );
-        }
+      let p = r * 4 * stride + c * 4;
+      for (let sub = 0; sub < 16; sub++) {
+        const ditherTone = tone + SUB_OFFSETS[sub];
+        const clamped = ditherTone < 0 ? 0 : ditherTone > MAX_TONE ? MAX_TONE : ditherTone;
+        pixels[p + (sub & 3)] = COLOR_LUT[(clamped * LUT_STEPS + 0.5) | 0];
+        if ((sub & 3) === 3) p += stride;
       }
     }
   }
+
+  field.bufferContext.putImageData(field.image, 0, 0);
+  context.fillStyle = PALETTE[0];
+  context.fillRect(0, 0, width, height);
+  context.imageSmoothingEnabled = false;
+  context.drawImage(
+    field.buffer,
+    field.drawX,
+    field.drawY,
+    cols * DITHER_CELL_SIZE,
+    rows * DITHER_CELL_SIZE
+  );
+  // Same pixels as filling the gap path here: drawn 1:1 in device space.
+  context.drawImage(field.gapLayer, 0, 0, width, height);
 }
 
 function DitherGridCanvas({
@@ -148,6 +248,10 @@ function DitherGridCanvas({
   startAfterHero?: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const pathname = usePathname();
+  // Set while an opaque element (the home hero) covers the whole viewport.
+  const occludedRef = useRef(false);
+  const syncRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -158,17 +262,24 @@ function DitherGridCanvas({
     const reducedMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)"
     ).matches;
+    const tier = getPerfTier();
+    const frameInterval = tier === "low" ? 1000 / 30 : 0;
     let animationFrame = 0;
+    let running = false;
+    let lastFrame = 0;
     let width = 0;
     let height = 0;
     let currentTime = 0;
-    const resizeTarget = canvas;
+    let field: Field | null = null;
+
+    const draw = () => {
+      if (field) drawDither(context, field, width, height, currentTime);
+    };
 
     const resize = () => {
-      const bounds = resizeTarget.getBoundingClientRect();
-      const nextWidth = Math.max(1, bounds.width);
-      const nextHeight = Math.max(1, bounds.height);
-      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+      const nextWidth = Math.max(1, canvas.clientWidth);
+      const nextHeight = Math.max(1, canvas.clientHeight);
+      const dpr = Math.min(window.devicePixelRatio || 1, effectDprCap(tier));
       const nextBufferWidth = Math.max(1, Math.round(nextWidth * dpr));
       const nextBufferHeight = Math.max(1, Math.round(nextHeight * dpr));
 
@@ -187,50 +298,88 @@ function DitherGridCanvas({
       // resolution and must not be included in the cell-size calculation.
       canvas.width = nextBufferWidth;
       canvas.height = nextBufferHeight;
-      canvas.style.width = `${nextWidth}px`;
-      canvas.style.height = `${nextHeight}px`;
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
-      drawDither(context, width, height, currentTime);
+      field = buildField(width, height, dpr);
+      draw();
     };
 
     const render = (now: number) => {
-      currentTime = now / 1000;
-      drawDither(context, width, height, currentTime);
       animationFrame = requestAnimationFrame(render);
+      // 4 ms tolerance absorbs rAF timestamp jitter so a 60 Hz display lands
+      // on every second frame instead of occasionally skipping two.
+      if (frameInterval && now - lastFrame < frameInterval - 4) return;
+      lastFrame = now;
+      currentTime = now / 1000;
+      draw();
     };
 
-    const observer = new ResizeObserver(resize);
-    observer.observe(resizeTarget);
-    window.addEventListener("resize", resize, { passive: true });
-    window.visualViewport?.addEventListener("resize", resize, { passive: true });
-    resize();
+    const sync = () => {
+      const shouldRun = !reducedMotion && !occludedRef.current && !document.hidden;
+      if (shouldRun && !running) {
+        running = true;
+        animationFrame = requestAnimationFrame(render);
+      } else if (!shouldRun && running) {
+        running = false;
+        cancelAnimationFrame(animationFrame);
+      }
+    };
+    syncRef.current = sync;
 
-    if (!reducedMotion) {
-      animationFrame = requestAnimationFrame(render);
-    }
+    const observer = new ResizeObserver(resize);
+    observer.observe(canvas);
+    document.addEventListener("visibilitychange", sync);
+    resize();
+    sync();
 
     return () => {
+      running = false;
       cancelAnimationFrame(animationFrame);
       observer.disconnect();
-      window.removeEventListener("resize", resize);
-      window.visualViewport?.removeEventListener("resize", resize);
+      document.removeEventListener("visibilitychange", sync);
+      syncRef.current = () => {};
     };
   }, [contained, startAfterHero]);
 
+  // Pause while an element marked data-dither-occluder (the opaque home hero)
+  // fills the viewport — the grid underneath is invisible then. The last
+  // frame stays painted, so it is ready the moment the hero starts to leave.
+  useEffect(() => {
+    const occluder = document.querySelector<HTMLElement>("[data-dither-occluder]");
+    if (!occluder) {
+      occludedRef.current = false;
+      syncRef.current();
+      return;
+    }
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        const root = entry.rootBounds;
+        occludedRef.current =
+          !!root &&
+          entry.intersectionRect.height >= root.height - 1 &&
+          entry.intersectionRect.width >= root.width - 1;
+        syncRef.current();
+      },
+      { threshold: [0, 0.98, 0.99, 1] }
+    );
+    io.observe(occluder);
+    return () => {
+      io.disconnect();
+      occludedRef.current = false;
+      syncRef.current();
+    };
+  }, [pathname]);
+
+  const overscan = `${PAINT_OVERSCAN * 100}%`;
   return (
     <canvas
       ref={canvasRef}
       aria-hidden="true"
-      className={
-        "fixed z-0 pointer-events-none opacity-[0.22]"
-      }
+      className="fixed z-0 pointer-events-none opacity-[0.22]"
       style={{
-        width: `calc(100% + ${VIEWPORT_OVERSCAN} + ${VIEWPORT_OVERSCAN})`,
-        height: `calc(100% + ${VIEWPORT_OVERSCAN} + ${VIEWPORT_OVERSCAN})`,
-        top: `-${VIEWPORT_OVERSCAN}`,
-        right: `-${VIEWPORT_OVERSCAN}`,
-        bottom: `-${VIEWPORT_OVERSCAN}`,
-        left: `-${VIEWPORT_OVERSCAN}`,
+        width: `${ELEMENT_SCALE * 100}%`,
+        height: `${ELEMENT_SCALE * 100}%`,
+        top: `-${overscan}`,
+        left: `-${overscan}`,
       }}
     />
   );

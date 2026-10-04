@@ -27,7 +27,7 @@ import { getTeamWordmarks, type Wordmark } from "@/lib/team-wordmarks";
 
 type Lang = "en" | "ml";
 
-const INTERVAL_MS = 4000;
+const INTERVAL_MS = 3000;
 const DURATION = 0.45;
 const STAGGER = 0.03;
 const EASE = "power3.out";
@@ -100,6 +100,8 @@ export interface TeamNameLanguageTransitionProps {
   align?: "start" | "center";
   /** Number of vertical shuffle strips. */
   strips?: number;
+  /** Show the English mark only, without the language animation. */
+  static?: boolean;
   className?: string;
 }
 
@@ -111,6 +113,7 @@ function TeamNameLanguageTransition({
   height = 1.3,
   align = "start",
   strips = 10,
+  static: isStatic = false,
   className,
 }: TeamNameLanguageTransitionProps) {
   const rootRef = useRef<HTMLSpanElement>(null);
@@ -145,7 +148,7 @@ function TeamNameLanguageTransition({
       gsap.set(tracks, { clearProps: "transform" });
     };
 
-    if (reducedMotion) {
+    if (reducedMotion || isStatic) {
       snap("en");
       return;
     }
@@ -210,7 +213,7 @@ function TeamNameLanguageTransition({
       tl?.kill();
       gsap.set(tracks, { clearProps: "transform" });
     };
-  }, [reducedMotion, english.src, malayalam.src]);
+  }, [reducedMotion, isStatic, english.src, malayalam.src]);
 
   const vars = {
     "--en-img": `url("${english.src}")`,
@@ -270,7 +273,7 @@ export function TeamWordmark({
   ...rest
 }: { teamId: string; teamName: string } & Pick<
   TeamNameLanguageTransitionProps,
-  "height" | "align" | "className"
+  "height" | "align" | "static" | "className"
 >) {
   const marks = getTeamWordmarks(teamId);
   if (!marks) return <>{teamName}</>;

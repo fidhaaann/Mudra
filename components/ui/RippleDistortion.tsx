@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, CSSProperties } from "react";
+import { memo, useEffect, useRef, useState, CSSProperties } from "react";
 import { Renderer, Program, Mesh, Geometry, Triangle, Texture, RenderTarget } from "ogl";
+import { effectDprCap, getPerfTier } from "@/lib/perf-tier";
 
 const MAX_WAVES = 100;
 const QUALITY_SCALE: Record<string, number> = { low: 0.4, medium: 0.7, high: 1 };
@@ -206,6 +207,8 @@ const RippleDistortion: React.FC<RippleDistortionProps> = ({
     wave: { uRings: { value: number } };
     composite: Record<string, { value: unknown }>;
   } | null>(null);
+  // Schedules one frame; set by the GL effect, used when uniforms change.
+  const requestRenderRef = useRef<() => void>(() => {});
   useEffect(() => {
     configRef.current = { brushSize, spread, fade, spacing, clickStrength, trigger, enabled };
   }, [brushSize, spread, fade, spacing, clickStrength, trigger, enabled]);
@@ -221,9 +224,12 @@ const RippleDistortion: React.FC<RippleDistortionProps> = ({
     let renderer: Renderer;
     try {
       const probe = document.createElement("canvas");
-      const supported =
-        Boolean(probe.getContext("webgl")) ||
-        Boolean(probe.getContext("experimental-webgl"));
+      const probeGl = (probe.getContext("webgl") ||
+        probe.getContext("experimental-webgl")) as WebGLRenderingContext | null;
+      const supported = Boolean(probeGl);
+      // Release the probe's context right away instead of holding a second
+      // live WebGL context for the lifetime of the page.
+      probeGl?.getExtension("WEBGL_lose_context")?.loseContext();
       if (!supported) {
         queueMicrotask(() => setFallback(true));
         return;
@@ -231,7 +237,9 @@ const RippleDistortion: React.FC<RippleDistortionProps> = ({
       renderer = new Renderer({
         alpha: false,
         antialias: false,
-        dpr: Math.min(window.devicePixelRatio || 1, 2),
+        // The source photo is upscaled to cover the viewport, so rendering
+        // above ~1.5× adds fill cost without visible detail.
+        dpr: Math.min(window.devicePixelRatio || 1, effectDprCap(getPerfTier())),
       });
     } catch {
       queueMicrotask(() => setFallback(true));
@@ -262,6 +270,7 @@ const RippleDistortion: React.FC<RippleDistortionProps> = ({
       if (disposed) return;
       imageTexture.image = image;
       compositeUniforms.uTextureSize.value = [image.naturalWidth || 1, image.naturalHeight || 1];
+      requestRender();
     };
     image.onerror = () => {
       if (!disposed) setFallback(true);
@@ -360,11 +369,8 @@ const RippleDistortion: React.FC<RippleDistortionProps> = ({
       const fieldH = Math.max(2, Math.round(height * scale));
       displacementTarget.setSize(fieldW, fieldH);
       compositeUniforms.uTexel.value = [1 / fieldW, 1 / fieldH];
+      requestRender();
     };
-
-    const ro = new ResizeObserver(resize);
-    ro.observe(mount);
-    resize();
 
     const setNewWave = (x: number, y: number, power: number) => {
       const cfg = configRef.current;
@@ -376,6 +382,7 @@ const RippleDistortion: React.FC<RippleDistortionProps> = ({
       wave.target = START_SCALE * Math.max(1, cfg.spread) * power;
       wave.size = Math.max(1, cfg.brushSize);
       wave.opacity = 1;
+      requestRender();
     };
 
     const localPoint = (clientX: number, clientY: number): [number, number] | null => {
@@ -412,11 +419,17 @@ const RippleDistortion: React.FC<RippleDistortionProps> = ({
     mount.addEventListener("pointermove", onMove, { passive: true });
     mount.addEventListener("pointerdown", onDown, { passive: true });
 
+    // ── render scheduling ─────────────────────────────────────────────────
+    // The frame only changes while ripples are alive or after a resize /
+    // texture / uniform change, so the loop runs on demand and stops when
+    // idle, and never runs while the hero is off-screen.
     let raf = 0;
+    let running = false;
+    let dirty = true;
+    let visible = true;
     let previousTime = 0;
 
     const loop = (now: number) => {
-      raf = requestAnimationFrame(loop);
       const delta = previousTime ? Math.min(0.05, (now - previousTime) / 1000) : 0;
       previousTime = now;
       const cfg = configRef.current;
@@ -424,6 +437,7 @@ const RippleDistortion: React.FC<RippleDistortionProps> = ({
       const growth = reduceMotion ? 0 : 1 - Math.exp(-delta * 1.09);
       const decay = reduceMotion ? 1 : Math.exp((-delta * LIFE_CONSTANT) / Math.max(0.15, cfg.fade));
 
+      let active = false;
       for (let i = 0; i < MAX_WAVES; i++) {
         const wave = waves[i];
         if (wave.opacity <= 0) { opacities[i] = 0; continue; }
@@ -433,6 +447,7 @@ const RippleDistortion: React.FC<RippleDistortionProps> = ({
 
         if (wave.opacity < 0.002) { wave.opacity = 0; opacities[i] = 0; continue; }
 
+        active = true;
         const half = (wave.scale * wave.size) / 2;
         offsets[i * 2]     = (wave.x / width) * 2 - 1;
         offsets[i * 2 + 1] = (wave.y / height) * 2 - 1;
@@ -447,12 +462,44 @@ const RippleDistortion: React.FC<RippleDistortionProps> = ({
 
       renderer.render({ scene: waveMesh, target: displacementTarget, clear: true });
       renderer.render({ scene: compositeMesh });
+      dirty = false;
+
+      // Keep going while ripples are alive; the frame after the last one dies
+      // has already cleared the field, so the loop can stop.
+      if (active && visible) {
+        raf = requestAnimationFrame(loop);
+      } else {
+        running = false;
+        previousTime = 0;
+        // Paused off-screen mid-ripple: resume when visible again.
+        if (active) dirty = true;
+      }
     };
-    raf = requestAnimationFrame(loop);
+
+    function requestRender() {
+      dirty = true;
+      if (running || !visible || disposed) return;
+      running = true;
+      raf = requestAnimationFrame(loop);
+    }
+    requestRenderRef.current = requestRender;
+
+    const io = new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting;
+      if (visible && dirty) requestRender();
+    });
+    io.observe(mount);
+
+    const ro = new ResizeObserver(resize);
+    ro.observe(mount);
+    resize();
 
     return () => {
       disposed = true;
+      running = false;
       cancelAnimationFrame(raf);
+      requestRenderRef.current = () => {};
+      io.disconnect();
       ro.disconnect();
       mount.removeEventListener("pointermove", onMove);
       mount.removeEventListener("pointerdown", onDown);
@@ -476,6 +523,7 @@ const RippleDistortion: React.FC<RippleDistortionProps> = ({
     (u.composite.uGrayscale as { value: number }).value = grayscale ? 1 : 0;
     (u.composite.uHighlight as { value: [number, number, number] }).value = hexToRGB(highlightColor);
     (u.composite.uTint as { value: [number, number, number] }).value = hexToRGB(tint);
+    requestRenderRef.current();
   }, [rings, strength, swirl, dispersion, glint, tintAmount, grayscale, highlightColor, tint]);
 
   return (
@@ -498,4 +546,6 @@ const RippleDistortion: React.FC<RippleDistortionProps> = ({
   );
 };
 
-export default RippleDistortion;
+// Props are primitives, so memo keeps parent state updates (e.g. the home
+// page's leaderboard fetch) from re-rendering the WebGL host.
+export default memo(RippleDistortion);

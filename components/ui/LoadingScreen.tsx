@@ -10,14 +10,17 @@ import React, {
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 
 // ─── image sources ────────────────────────────────────────────────────────────
+// 600px WebP renditions of the 2858px PNG artwork: the frame is at most 180 CSS
+// px (≤540 device px at 3×), and the originals cost ~9.7 MB to download and
+// ~35 MB each to decode before the intro could advance.
 
 const MUDRA_SRCS: string[] = [
-  "/images/mudras/mudra-1.png",
-  "/images/mudras/mudra-2.png",
-  "/images/mudras/mudra-3.png",
-  "/images/mudras/mudra-4.png",
-  "/images/mudras/mudra-5.png",
-  "/images/mudras/mudra-6.png",
+  "/images/mudras/mudra-1.webp",
+  "/images/mudras/mudra-2.webp",
+  "/images/mudras/mudra-3.webp",
+  "/images/mudras/mudra-4.webp",
+  "/images/mudras/mudra-5.webp",
+  "/images/mudras/mudra-6.webp",
 ];
 
 const SEQUENCE_INDICES: number[] = [0, 2, 4, 1, 5, 3, 0, 4, 2, 5];

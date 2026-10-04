@@ -38,24 +38,28 @@ export const Navbar: React.FC = () => {
   return (
     <motion.header
       variants={{
-        visible: { y: 0, opacity: 1 },
-        hidden: { y: -90, opacity: 0 },
+        // Clear the filter once shown: a filter on this ancestor would disable
+        // the glass surface's backdrop blur.
+        visible: { y: 0, opacity: 1, filter: "blur(0px)", transitionEnd: { filter: "none" } },
+        // Keyframes start from blur(0px) since "none" can't be interpolated.
+        hidden: { y: -24, opacity: 0, filter: ["blur(0px)", "blur(12px)"] },
       }}
+      initial={false}
       animate={hidden ? "hidden" : "visible"}
-      transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
       className="fixed top-4 inset-x-0 z-50 w-full px-4 sm:px-6 flex justify-center pointer-events-none"
     >
       <div className="glass-surface relative pointer-events-auto flex items-center justify-between gap-4 sm:gap-8 bg-[#110B0B]/85 backdrop-blur-md border border-[#E3D28A]/25 hover:border-[#E3D28A]/40 transition-colors shadow-2xl shadow-black/80 rounded-full px-4 py-2 sm:px-6 sm:py-2.5 max-w-4xl w-full sm:w-auto">
         {/* MUDRA Official Logo */}
         <Link href="/" className="group flex items-center py-0.5 shrink-0">
           <Image
-            src="/images/mudra-logo.png"
+            src="/images/mudra-wordmark.png"
             alt="MUDRA"
-            width={585}
-            height={511}
+            width={98}
+            height={28}
             priority
             loading="eager"
-            className="h-8 sm:h-9 w-auto object-contain transition-transform duration-300 group-hover:scale-110"
+            className="h-6 sm:h-7 w-auto object-contain transition-transform duration-300 group-hover:scale-110"
           />
         </Link>
 

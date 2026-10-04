@@ -115,6 +115,9 @@ const FadeContent: React.FC<FadeContentProps> = ({
       paused: true,
       delay: toSeconds(delay),
       onComplete: () => {
+        // Drop the resting blur(0px) filter and layer hint so the settled
+        // content isn't kept on a filtered layer (causes flicker/pop).
+        gsap.set(el, { clearProps: "filter,willChange" });
         onComplete?.();
         if (disappearAfter > 0) {
           gsap.to(el, {
@@ -169,6 +172,9 @@ const FadeContent: React.FC<FadeContentProps> = ({
     const tl = gsap.timeline({
       delay: toSeconds(delay),
       onComplete: () => {
+        // Drop the resting blur(0px) filter and layer hint so the settled
+        // content isn't kept on a filtered layer (causes flicker/pop).
+        gsap.set(el, { clearProps: "filter,willChange" });
         onComplete?.();
         if (disappearAfter > 0) {
           gsap.to(el, {

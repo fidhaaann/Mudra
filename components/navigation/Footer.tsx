@@ -9,12 +9,11 @@ export const Footer: React.FC = () => {
         {/* MUDRA Logo */}
         <Link href="/" className="group flex items-center shrink-0">
           <Image
-            src="/images/mudra-logo.png"
+            src="/images/mudra-wordmark.png"
             alt="MUDRA"
-            width={585}
-            height={511}
-            loading="eager"
-            className="h-7 sm:h-8 w-auto object-contain transition-transform duration-200 group-hover:scale-105"
+            width={84}
+            height={24}
+            className="h-5 sm:h-6 w-auto object-contain transition-transform duration-200 group-hover:scale-105"
           />
         </Link>
 
