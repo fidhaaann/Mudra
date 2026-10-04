@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { getImageProps } from "next/image";
 import { usePathname } from "next/navigation";
-import { Menu, X } from "lucide-react";
+import { MenuToggleIcon } from "./MenuToggleIcon";
 import { motion, useScroll, useMotionValueEvent } from "framer-motion";
 import { cn } from "@/lib/utils";
 
@@ -120,7 +120,7 @@ export const Navbar: React.FC = () => {
             aria-expanded={mobileMenuOpen}
             aria-controls="mobile-nav-drawer"
           >
-            {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+            <MenuToggleIcon open={mobileMenuOpen} />
           </button>
         </div>
 
