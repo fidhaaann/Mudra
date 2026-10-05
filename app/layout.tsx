@@ -38,11 +38,8 @@ const spaceMono = Space_Mono({
 export const metadata: Metadata = {
   title: "MUDRA",
   description: "Official website for the MUDRA-Toc H Cultural Arts Competition.",
-  icons: {
-    icon: "/images/mudra-logo.png",
-    shortcut: "/images/mudra-logo.png",
-    apple: "/images/mudra-logo.png",
-  },
+  // Icons come from the file conventions: app/favicon.ico, app/icon.png,
+  // app/apple-icon.png (generated from the new MUDRA dancer logo).
 };
 
 export default function RootLayout({
