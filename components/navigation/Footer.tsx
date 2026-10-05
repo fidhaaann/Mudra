@@ -11,8 +11,11 @@ export const Footer: React.FC = () => {
           <Image
             src="/images/mudra-wordmark.png"
             alt="MUDRA"
-            width={84}
-            height={24}
+            // Natural dimensions: CSS sets the height and w-auto keeps the exact
+            // ratio; `sizes` keeps the download small (≤ 84px wide).
+            width={793}
+            height={228}
+            sizes="84px"
             className="h-5 sm:h-6 w-auto object-contain transition-transform duration-200 group-hover:scale-105"
           />
         </Link>

@@ -91,6 +91,26 @@ const VIRTUAL_SCALE = 3;
 const PAINT_OVERSCAN = 0.25; // fraction of the viewport painted beyond each edge
 const ELEMENT_SCALE = 1 + PAINT_OVERSCAN * 2;
 
+// ─── rendering strategy ──────────────────────────────────────────────────────
+// Each frame only writes one pixel per sub-cell into a tiny canvas (a few
+// thousand pixels); the compositor scales that canvas up to the 14px sub-cells
+// with nearest-neighbour sampling (`image-rendering: pixelated`), and the gap
+// lines live on a second, static canvas drawn once per resize.
+//
+// Why: the previous path raster-painted the whole viewport-sized backing store
+// every frame (fill + scaled drawImage + gap-layer drawImage). That is cheap
+// where 2D canvas is GPU-accelerated (Chromium) but measured ~7 fps in WebKit
+// at 3× device pixel ratio vs ~50 fps without the canvas, because WebKit paints
+// 2D canvas content on the CPU. Scaling in the compositor removes that cost in
+// every engine.
+//
+// Feature detection, not browser detection: without `pixelated` support the
+// cell canvas is rendered at FALLBACK_SCALE pixels per sub-cell instead, so any
+// smoothing the browser applies stays within the ~1px band hidden by the gaps.
+const FALLBACK_SCALE = 7;
+const supportsPixelated = () =>
+  typeof CSS !== "undefined" && CSS.supports?.("image-rendering", "pixelated") === true;
+
 interface Field {
   cols: number;
   rows: number;
@@ -98,20 +118,18 @@ interface Field {
   baseTone: Float32Array;
   waveX: Float32Array;
   waveY: Float32Array;
-  // One pixel per sub-cell; scaled up with nearest-neighbour sampling
+  // Device pixels per sub-cell in the cell canvas (1 when the compositor
+  // scales with nearest-neighbour sampling)
+  scale: number;
   image: ImageData;
   pixels: Uint32Array;
-  buffer: HTMLCanvasElement;
-  bufferContext: CanvasRenderingContext2D;
-  // Sub-cell gaps, rasterised once at backing-store resolution. Filling the
-  // ~800 anti-aliased gap rects every frame halved the frame rate at desktop
-  // sizes; blitting the finished layer costs one texture draw.
-  gapLayer: HTMLCanvasElement;
+  // Cell window position/size inside the element, in CSS px
   drawX: number;
   drawY: number;
+  gaps: Path2D;
 }
 
-function buildField(width: number, height: number, dpr: number): Field | null {
+function buildField(width: number, height: number, scale: number): Field | null {
   const virtualWidth = (width / ELEMENT_SCALE) * VIRTUAL_SCALE;
   const virtualHeight = (height / ELEMENT_SCALE) * VIRTUAL_SCALE;
   const offsetX = (virtualWidth - width) / 2;
@@ -127,12 +145,7 @@ function buildField(width: number, height: number, dpr: number): Field | null {
   const rows = row1 - row0;
   if (cols <= 0 || rows <= 0) return null;
 
-  const buffer = document.createElement("canvas");
-  buffer.width = cols * 4;
-  buffer.height = rows * 4;
-  const bufferContext = buffer.getContext("2d");
-  if (!bufferContext) return null;
-  const image = bufferContext.createImageData(buffer.width, buffer.height);
+  const image = new ImageData(cols * 4 * scale, rows * 4 * scale);
 
   const angle = (CONFIG.pixelAngle * Math.PI) / 180;
   const cos = Math.cos(angle);
@@ -175,37 +188,24 @@ function buildField(width: number, height: number, dpr: number): Field | null {
   for (let k = 0; k <= rows * 4; k++) {
     gaps.rect(drawX, drawY + k * SUB_SIZE - GAP, cols * DITHER_CELL_SIZE, GAP * 2);
   }
-  const gapLayer = document.createElement("canvas");
-  gapLayer.width = Math.max(1, Math.round(width * dpr));
-  gapLayer.height = Math.max(1, Math.round(height * dpr));
-  const gapContext = gapLayer.getContext("2d");
-  if (!gapContext) return null;
-  gapContext.setTransform(dpr, 0, 0, dpr, 0, 0);
-  gapContext.fillStyle = PALETTE[0];
-  gapContext.fill(gaps);
 
   return {
-    cols, rows, baseTone, waveX, waveY,
-    image, pixels: new Uint32Array(image.data.buffer), buffer, bufferContext,
-    gapLayer, drawX, drawY,
+    cols, rows, baseTone, waveX, waveY, scale,
+    image, pixels: new Uint32Array(image.data.buffer),
+    drawX, drawY, gaps,
   };
 }
 
-function drawDither(
-  context: CanvasRenderingContext2D,
-  field: Field,
-  width: number,
-  height: number,
-  time: number
-) {
-  const { cols, rows, baseTone, waveX, waveY, pixels } = field;
+/** Writes this frame's colours into the cell canvas (one block per sub-cell). */
+function drawDither(context: CanvasRenderingContext2D, field: Field, time: number) {
+  const { cols, rows, baseTone, waveX, waveY, pixels, scale } = field;
   const ph = time * 0.71;
   const amt = 0.6;
   const dir = 1;
   const spin = ph * dir;
   const modulation = Math.sin(ph * 0.9 * dir) * 0.5 * amt;
   const distortion = CONFIG.distortion / 10;
-  const stride = cols * 4;
+  const stride = cols * 4 * scale;
 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
@@ -215,29 +215,25 @@ function drawDither(
         0,
         Math.min(MAX_TONE, (baseTone[i] + wave * 0.12) * MAX_TONE + modulation)
       );
-      let p = r * 4 * stride + c * 4;
       for (let sub = 0; sub < 16; sub++) {
         const ditherTone = tone + SUB_OFFSETS[sub];
         const clamped = ditherTone < 0 ? 0 : ditherTone > MAX_TONE ? MAX_TONE : ditherTone;
-        pixels[p + (sub & 3)] = COLOR_LUT[(clamped * LUT_STEPS + 0.5) | 0];
-        if ((sub & 3) === 3) p += stride;
+        const color = COLOR_LUT[(clamped * LUT_STEPS + 0.5) | 0];
+        const x = (c * 4 + (sub & 3)) * scale;
+        const y = (r * 4 + (sub >> 2)) * scale;
+        if (scale === 1) {
+          pixels[y * stride + x] = color;
+        } else {
+          for (let dy = 0; dy < scale; dy++) {
+            const start = (y + dy) * stride + x;
+            pixels.fill(color, start, start + scale);
+          }
+        }
       }
     }
   }
 
-  field.bufferContext.putImageData(field.image, 0, 0);
-  context.fillStyle = PALETTE[0];
-  context.fillRect(0, 0, width, height);
-  context.imageSmoothingEnabled = false;
-  context.drawImage(
-    field.buffer,
-    field.drawX,
-    field.drawY,
-    cols * DITHER_CELL_SIZE,
-    rows * DITHER_CELL_SIZE
-  );
-  // Same pixels as filling the gap path here: drawn 1:1 in device space.
-  context.drawImage(field.gapLayer, 0, 0, width, height);
+  context.putImageData(field.image, 0, 0);
 }
 
 function DitherGridCanvas({
@@ -247,59 +243,73 @@ function DitherGridCanvas({
   contained?: boolean;
   startAfterHero?: boolean;
 }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const cellsRef = useRef<HTMLCanvasElement>(null);
+  const gapsRef = useRef<HTMLCanvasElement>(null);
   const pathname = usePathname();
   // Set while an opaque element (the home hero) covers the whole viewport.
   const occludedRef = useRef(false);
   const syncRef = useRef<() => void>(() => {});
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const context = canvas.getContext("2d", { alpha: false });
-    if (!context) return;
+    const root = rootRef.current;
+    const cells = cellsRef.current;
+    const gapCanvas = gapsRef.current;
+    if (!root || !cells || !gapCanvas) return;
+    const context = cells.getContext("2d", { alpha: false });
+    const gapContext = gapCanvas.getContext("2d");
+    if (!context || !gapContext) return;
 
     const reducedMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)"
     ).matches;
     const tier = getPerfTier();
     const frameInterval = tier === "low" ? 1000 / 30 : 0;
+    const pixelated = supportsPixelated();
+    const scale = pixelated ? 1 : FALLBACK_SCALE;
+    cells.style.imageRendering = pixelated ? "pixelated" : "auto";
+
     let animationFrame = 0;
     let running = false;
     let lastFrame = 0;
     let width = 0;
     let height = 0;
+    let gapDpr = 0;
     let currentTime = 0;
     let field: Field | null = null;
 
     const draw = () => {
-      if (field) drawDither(context, field, width, height, currentTime);
+      if (field) drawDither(context, field, currentTime);
     };
 
     const resize = () => {
-      const nextWidth = Math.max(1, canvas.clientWidth);
-      const nextHeight = Math.max(1, canvas.clientHeight);
+      const nextWidth = Math.max(1, root.clientWidth);
+      const nextHeight = Math.max(1, root.clientHeight);
       const dpr = Math.min(window.devicePixelRatio || 1, effectDprCap(tier));
-      const nextBufferWidth = Math.max(1, Math.round(nextWidth * dpr));
-      const nextBufferHeight = Math.max(1, Math.round(nextHeight * dpr));
-
-      if (
-        nextWidth === width &&
-        nextHeight === height &&
-        canvas.width === nextBufferWidth &&
-        canvas.height === nextBufferHeight
-      ) {
-        return;
-      }
+      if (nextWidth === width && nextHeight === height && dpr === gapDpr) return;
 
       width = nextWidth;
       height = nextHeight;
-      // CSS dimensions define the visual grid. DPR only controls backing-store
-      // resolution and must not be included in the cell-size calculation.
-      canvas.width = nextBufferWidth;
-      canvas.height = nextBufferHeight;
-      context.setTransform(dpr, 0, 0, dpr, 0, 0);
-      field = buildField(width, height, dpr);
+      gapDpr = dpr;
+      field = buildField(width, height, scale);
+      if (!field) return;
+
+      // CSS dimensions define the visual grid; the cell canvas is placed and
+      // sized in CSS px and holds only `scale` device pixels per sub-cell.
+      cells.width = field.cols * 4 * scale;
+      cells.height = field.rows * 4 * scale;
+      cells.style.left = `${field.drawX}px`;
+      cells.style.top = `${field.drawY}px`;
+      cells.style.width = `${field.cols * DITHER_CELL_SIZE}px`;
+      cells.style.height = `${field.rows * DITHER_CELL_SIZE}px`;
+
+      // Static gap lines, drawn once per size at the capped device pixel ratio.
+      gapCanvas.width = Math.max(1, Math.round(width * dpr));
+      gapCanvas.height = Math.max(1, Math.round(height * dpr));
+      gapContext.setTransform(dpr, 0, 0, dpr, 0, 0);
+      gapContext.fillStyle = PALETTE[0];
+      gapContext.fill(field.gaps);
+
       draw();
     };
 
@@ -325,7 +335,7 @@ function DitherGridCanvas({
     };
     syncRef.current = sync;
 
-    // Size the canvas from a stable reference (the screen, or the viewport if
+    // Size the element from a stable reference (the screen, or the viewport if
     // it is ever larger) instead of the live viewport. Scrollbars appearing
     // during page changes and mobile toolbars collapsing resize the viewport;
     // with a viewport-relative box each of those re-centred the grid and
@@ -339,14 +349,14 @@ function DitherGridCanvas({
       if (nextRefWidth === refWidth && nextRefHeight === refHeight) return;
       refWidth = nextRefWidth;
       refHeight = nextRefHeight;
-      canvas.style.left = `${-refWidth * PAINT_OVERSCAN}px`;
-      canvas.style.top = `${-refHeight * PAINT_OVERSCAN}px`;
-      canvas.style.width = `${refWidth * ELEMENT_SCALE}px`;
-      canvas.style.height = `${refHeight * ELEMENT_SCALE}px`;
+      root.style.left = `${-refWidth * PAINT_OVERSCAN}px`;
+      root.style.top = `${-refHeight * PAINT_OVERSCAN}px`;
+      root.style.width = `${refWidth * ELEMENT_SCALE}px`;
+      root.style.height = `${refHeight * ELEMENT_SCALE}px`;
     };
 
     const observer = new ResizeObserver(resize);
-    observer.observe(canvas);
+    observer.observe(root);
     window.addEventListener("resize", layout, { passive: true });
     document.addEventListener("visibilitychange", sync);
     layout();
@@ -394,17 +404,22 @@ function DitherGridCanvas({
 
   const overscan = `${PAINT_OVERSCAN * 100}%`;
   return (
-    <canvas
-      ref={canvasRef}
+    // The whole layer (base colour + cells + gaps) fades as one group, exactly
+    // like the former single canvas did.
+    <div
+      ref={rootRef}
       aria-hidden="true"
-      className="fixed z-0 pointer-events-none opacity-[0.22]"
+      className="fixed z-0 pointer-events-none overflow-hidden opacity-[0.22] bg-[#110B0B]"
       style={{
         width: `${ELEMENT_SCALE * 100}%`,
         height: `${ELEMENT_SCALE * 100}%`,
         top: `-${overscan}`,
         left: `-${overscan}`,
       }}
-    />
+    >
+      <canvas ref={cellsRef} className="absolute" />
+      <canvas ref={gapsRef} className="absolute inset-0 h-full w-full" />
+    </div>
   );
 }
 

@@ -91,8 +91,11 @@ export const Navbar: React.FC = () => {
           <Image
             src="/images/mudra-logo-dancer.png"
             alt="MUDRA"
-            width={48}
-            height={36}
+            // Natural dimensions: CSS sets the height and w-auto keeps the exact
+            // ratio; `sizes` keeps the download small (≤ 48px wide).
+            width={994}
+            height={748}
+            sizes="48px"
             loading="eager"
             fetchPriority="high"
             className="h-9 w-auto object-contain transition-transform duration-300 group-hover:scale-110"
