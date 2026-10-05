@@ -163,7 +163,10 @@ export default function EventsPage() {
 
   // ── render ────────────────────────────────────────────────────────────────
   return (
-    <div className="max-w-6xl mx-auto px-6 sm:px-8 pt-28 pb-16 space-y-10">
+    // w-full: inside the flex-column <main>, mx-auto alone shrinks this wrapper
+    // to its content, so filters with shorter event names (On-stage) narrowed
+    // the grid and shrank every card. A fixed width keeps cards identical.
+    <div className="w-full max-w-6xl mx-auto px-6 sm:px-8 pt-28 pb-16 space-y-10">
 
       {/* Header */}
       <div className="space-y-4">
