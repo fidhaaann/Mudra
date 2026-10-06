@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, AlertCircle, RefreshCw } from "lucide-react";
 import { Event } from "@/types/event";
+import { RegistrationStatus } from "@/components/events/RegistrationStatus";
 import { EventResult } from "@/types/result";
 
 // ─── fetch state machine ──────────────────────────────────────────────────────
@@ -254,20 +255,7 @@ export default function EventDetailPage() {
           {/* Registration */}
           <div className="space-y-2 border-b border-[#E3D28A]/25 pb-6">
             <h2 className="font-display text-[10px] tracking-widest text-[#E3D28A]/50 uppercase">REGISTRATION</h2>
-            {event.registrationLink ? (
-              <div className="flex justify-center">
-                <a
-                  href={event.registrationLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex px-5 py-2.5 bg-[#E02E0B] text-[#E3D28A] font-display text-xs uppercase tracking-wider font-bold hover:bg-[#941108] transition-colors"
-                >
-                  REGISTER FOR EVENT
-                </a>
-              </div>
-            ) : (
-              <p className="font-body text-xs text-[#E3D28A]/60 italic">Registration opens soon.</p>
-            )}
+            <RegistrationStatus event={event} />
           </div>
 
           {/* Results */}
