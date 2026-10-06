@@ -19,6 +19,22 @@ export function getSheetsClient() {
   return google.sheets({ version: 'v4', auth });
 }
 
+// ─── ordering ─────────────────────────────────────────────────────────────────
+// One canonical event order for every consumer (events page, schedule, …):
+// CATEGORY groups (on-stage first), then DISPLAY_ORDER within the category.
+// Events without a DISPLAY_ORDER go last in their category; EVENT_ID is only a
+// deterministic tiebreak — sheet row order and names are never used.
+
+const CATEGORY_RANK: Record<Event['category'], number> = { 'on-stage': 0, 'off-stage': 1 };
+
+export function compareEventOrder(a: Event, b: Event): number {
+  return (
+    CATEGORY_RANK[a.category] - CATEGORY_RANK[b.category] ||
+    (a.displayOrder ?? Infinity) - (b.displayOrder ?? Infinity) ||
+    a.id.localeCompare(b.id, undefined, { numeric: true })
+  );
+}
+
 // ─── in-memory cache ──────────────────────────────────────────────────────────
 // Prevents redundant Google Sheets round-trips within a short window.
 // Serverless cold-starts naturally clear it; the 30-second TTL is the hot-path
@@ -82,6 +98,7 @@ export async function fetchEvents(): Promise<Event[]> {
     const regLinkIdx  = headers.findIndex(
       h => h === 'registration link' || h === 'registration open'
     );
+    const orderIdx    = headers.findIndex(h => h === 'display order' || h === 'displayorder');
 
     const events: Event[] = [];
 
@@ -115,6 +132,8 @@ export async function fetchEvents(): Promise<Event[]> {
           ? `${dateStr}, ${startStr}${endStr ? ` - ${endStr}` : ''}`
           : dateStr;
       }
+
+      const rawOrder = orderIdx >= 0 ? Number(String(row[orderIdx] ?? '').trim()) : NaN;
 
       events.push({
         id,
@@ -160,8 +179,14 @@ export async function fetchEvents(): Promise<Event[]> {
                 String(row[regLinkIdx]).toLowerCase() !== 'false'
               )
             : false,
+        displayOrder:
+          orderIdx >= 0 && String(row[orderIdx] ?? '').trim() !== '' && Number.isFinite(rawOrder)
+            ? rawOrder
+            : undefined,
       });
     }
+
+    events.sort(compareEventOrder);
 
     eventsCache = { data: events, expiresAt: now + CACHE_TTL_MS };
     return events;

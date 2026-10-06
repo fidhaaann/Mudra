@@ -25,10 +25,10 @@ export interface ScheduledEvent {
   venue: string | null;
   status: EventStatus;
   /**
-   * Sort key from the sheet (integer).  null for unscheduled events.
+   * DISPLAY_ORDER from the sheet, or null when the sheet leaves it blank.
    * Scheduled events are sorted: date → startTime → displayOrder.
-   * Unscheduled events follow all scheduled events and are ordered by
-   * their row position in the sheet (natural discovery order).
+   * Unscheduled events follow all scheduled events in the canonical event
+   * order (category → displayOrder).
    */
   displayOrder: number | null;
 }

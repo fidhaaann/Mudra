@@ -45,6 +45,19 @@ function fetchReducer(_state: FetchState, action: FetchAction): FetchState {
   }
 }
 
+// ─── card layout ──────────────────────────────────────────────────────────────
+// Every card has the same outer size: equal grid tracks (2 columns on phones),
+// a 4:5 poster frame across the card width, a title area exactly two lines tall
+// (explicit rem line-height × 2, long names clamp) and a fixed-height meta row.
+// Nothing in the card sizes itself from its content.
+
+const EVENT_GRID = "grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-5";
+const CARD_BODY = "flex flex-col gap-2 p-2.5 sm:gap-3 sm:p-4";
+// 2 × 1rem lines on phones, 2 × 1.25rem from sm up
+const CARD_TITLE_BOX = "h-8 text-xs leading-4 sm:h-10 sm:text-base sm:leading-5";
+const CARD_META =
+  "flex h-6 sm:h-7 items-end justify-between gap-1 sm:gap-2 border-t text-[9px] max-[359px]:text-[8px] sm:text-[10px] leading-none tracking-normal sm:tracking-wider";
+
 // ─── loading skeleton ─────────────────────────────────────────────────────────
 // Mirrors the actual event card structure exactly (image aspect + body + footer)
 // to prevent layout shift when real cards appear.
@@ -52,7 +65,7 @@ function fetchReducer(_state: FetchState, action: FetchAction): FetchState {
 function LoadingSkeleton() {
   return (
     <div
-      className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5"
+      className={EVENT_GRID}
       aria-label="Loading events"
       aria-busy="true"
     >
@@ -65,24 +78,24 @@ function LoadingSkeleton() {
           {/* Image placeholder — same fixed 4:5 frame as real cards */}
           <div className="w-full aspect-4/5 bg-[#5A0E0B]/10 border-b border-[#E3D28A]/10" />
 
-          {/* Card body */}
-          <div className="p-4 space-y-3">
-            {/* Event name placeholder — two lines for long names */}
-            <div className="space-y-1.5">
+          {/* Card body — same fixed regions as the real card */}
+          <div className={CARD_BODY}>
+            {/* Event name placeholder — the fixed two-line title area */}
+            <div className={`${CARD_TITLE_BOX} flex flex-col justify-center gap-1.5`}>
               <div
-                className="h-3.5 bg-[#E3D28A]/10 rounded-sm"
+                className="h-2.5 sm:h-3.5 bg-[#E3D28A]/10 rounded-sm"
                 style={{ width: `${65 + ((i * 17) % 25)}%` }}
               />
               <div
-                className="h-3.5 bg-[#E3D28A]/8 rounded-sm"
+                className="h-2.5 sm:h-3.5 bg-[#E3D28A]/8 rounded-sm"
                 style={{ width: `${35 + ((i * 13) % 20)}%` }}
               />
             </div>
 
             {/* Card footer — category / status row */}
-            <div className="flex items-center justify-between pt-2 border-t border-[#E3D28A]/10">
-              <div className="h-2.5 w-16 bg-[#E3D28A]/10 rounded-sm" />
-              <div className="h-2.5 w-14 bg-[#E3D28A]/10 rounded-sm" />
+            <div className={`${CARD_META} border-[#E3D28A]/10`}>
+              <div className="h-2 sm:h-2.5 w-[40%] bg-[#E3D28A]/10 rounded-sm" />
+              <div className="h-2 sm:h-2.5 w-[35%] bg-[#E3D28A]/10 rounded-sm" />
             </div>
           </div>
         </div>
@@ -166,7 +179,7 @@ export default function EventsPage() {
     // w-full: inside the flex-column <main>, mx-auto alone shrinks this wrapper
     // to its content, so filters with shorter event names (On-stage) narrowed
     // the grid and shrank every card. A fixed width keeps cards identical.
-    <div className="w-full max-w-6xl mx-auto px-6 sm:px-8 pt-28 pb-16 space-y-10">
+    <div className="w-full max-w-6xl mx-auto px-4 sm:px-8 pt-28 pb-16 space-y-10">
 
       {/* Header */}
       <div className="space-y-4">
@@ -241,7 +254,7 @@ export default function EventsPage() {
       {/* Event Cards Grid */}
       {!loading && !error && (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+          <div className={EVENT_GRID}>
             {filteredEvents.map((event) => (
               <Link
                 key={event.id}
@@ -267,15 +280,18 @@ export default function EventsPage() {
                 )}
 
                 {/* Card body */}
-                <div className="flex flex-1 flex-col p-4 space-y-3">
-                  <h2 className="font-display font-bold text-base text-[#E3D28A] group-hover:text-[#E02E0B] transition-colors leading-tight">
+                <div className={CARD_BODY}>
+                  <h2
+                    title={event.name}
+                    className={`${CARD_TITLE_BOX} line-clamp-2 wrap-break-word font-display font-bold text-[#E3D28A] group-hover:text-[#E02E0B] transition-colors`}
+                  >
                     {event.name}
                   </h2>
 
-                  <div className="mt-auto flex items-center justify-between font-display text-[10px] tracking-wider text-[#E3D28A]/60 pt-2 border-t border-[#E3D28A]/20">
-                    <span className="uppercase">{event.category}</span>
+                  <div className={`${CARD_META} border-[#E3D28A]/20 font-display text-[#E3D28A]/60`}>
+                    <span className="truncate uppercase">{event.category}</span>
                     <span
-                      className={`font-bold uppercase ${
+                      className={`shrink-0 font-bold uppercase ${
                         event.status === "completed"
                           ? "text-[#E3D28A]"
                           : event.status === "live"

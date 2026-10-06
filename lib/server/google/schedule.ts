@@ -97,7 +97,7 @@ function projectEvent(event: Event): ScheduledEvent {
     endTime,
     venue:           event.venue ?? null,
     status:          toStatus(event.status),
-    displayOrder:    null, // not exposed on Event; schedule-specific sort falls back to date/time
+    displayOrder:    event.displayOrder ?? null,
   };
 }
 
@@ -126,10 +126,12 @@ export async function fetchSchedule(): Promise<ScheduleResponse> {
     }
   }
 
-  // Sort scheduled events: date → startTime → (displayOrder is null here, so
-  // the date+time sort is the full ordering).
+  // Scheduled events: date → startTime → DISPLAY_ORDER. The input is already in
+  // canonical (category → DISPLAY_ORDER) order and Array.sort is stable, so
+  // unscheduled events — and any remaining ties — keep that order.
   scheduled.sort((a, b) =>
-    sortKey(a.date, a.startTime).localeCompare(sortKey(b.date, b.startTime))
+    sortKey(a.date, a.startTime).localeCompare(sortKey(b.date, b.startTime)) ||
+    (a.displayOrder ?? Infinity) - (b.displayOrder ?? Infinity)
   );
 
   return {

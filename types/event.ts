@@ -19,4 +19,6 @@ export interface Event {
   imageUrl?: string;
   registrationLink?: string;
   registrationOpen?: boolean;
+  /** DISPLAY_ORDER from the EVENTS sheet: position within the event's category. */
+  displayOrder?: number;
 }
