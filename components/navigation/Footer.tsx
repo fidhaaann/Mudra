@@ -4,7 +4,7 @@ import Image from "next/image";
 
 export const Footer: React.FC = () => {
   return (
-    <footer className="relative z-1 w-full py-10 px-4 sm:px-6 flex justify-center">
+    <footer className="relative z-1 w-full py-10 px-4 sm:px-6 flex flex-col items-center gap-3">
       <div className="glass-surface w-full max-w-4xl bg-[#110B0B]/85 backdrop-blur-md border border-[#E3D28A]/25 rounded-full px-6 sm:px-8 py-3.5 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs shadow-2xl shadow-black/80">
         {/* MUDRA Logo */}
         <Link href="/" className="group flex items-center shrink-0">
@@ -27,6 +27,9 @@ export const Footer: React.FC = () => {
           width={2000}
           height={290}
           sizes="(max-width: 640px) 45vw, 180px"
+          // On short pages the footer is in the first viewport and this is the
+          // largest image there (the LCP element), so don't lazy-load it.
+          loading="eager"
           className="h-auto w-[min(45vw,180px)] object-contain"
         />
 
@@ -61,6 +64,19 @@ export const Footer: React.FC = () => {
           © MUDRA
         </div>
       </div>
+
+      {/* Icon attribution required by the Flaticon free licence (laurel on the Home podium) */}
+      <p className="font-body text-[10px] text-[#E3D28A]/35 text-center">
+        <a
+          href="https://www.flaticon.com/free-icons/trophy"
+          title="trophy icons"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:text-[#E3D28A]/70 transition-colors"
+        >
+          Trophy icons created by kliwir art - Flaticon
+        </a>
+      </p>
     </footer>
   );
 };

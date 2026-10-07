@@ -624,7 +624,11 @@ export default function LeaderboardPage() {
   const handleRetry = () => { loadLeaderboard(); };
 
   const teams = data?.teams ?? [];
-  const hasResults = (data?.completedEventCount ?? 0) > 0;
+  // Standings are live once any event is completed OR the API reports points —
+  // MANUAL overrides can set totals before any result exists. (Totals, ranks
+  // and gaps are already effective values from /api/leaderboard.)
+  const hasResults =
+    (data?.completedEventCount ?? 0) > 0 || teams.some((t) => t.totalPoints !== 0);
 
   return (
     // min-w-0 prevents the flex child from over-stretching on narrow viewports

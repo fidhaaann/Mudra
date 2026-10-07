@@ -2,11 +2,19 @@
 
 import React, { useReducer, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useParams } from "next/navigation";
 import { ArrowLeft, AlertCircle, RefreshCw } from "lucide-react";
 import { Event } from "@/types/event";
 import { RegistrationStatus } from "@/components/events/RegistrationStatus";
 import { EventResult } from "@/types/result";
+
+// Medal icons for result placements (Flaticon, "first/second/third").
+const MEDAL: Record<number, string> = {
+  1: "/images/medal-first.png",
+  2: "/images/medal-second.png",
+  3: "/images/medal-third.png",
+};
 
 // ─── fetch state machine ──────────────────────────────────────────────────────
 // Same pattern as the events list page — useReducer avoids setState-in-effect.
@@ -290,6 +298,18 @@ export default function EventDetailPage() {
                         className="flex justify-between items-center py-2 border-b border-[#E3D28A]/20 gap-3"
                       >
                         <div className="flex items-center gap-2 min-w-0">
+                          {/* Medal (gold/silver/bronze) — decorative; the place is spelled out next to it */}
+                          {MEDAL[p.placement] && (
+                            <Image
+                              src={MEDAL[p.placement]}
+                              alt=""
+                              aria-hidden="true"
+                              width={72}
+                              height={96}
+                              sizes="24px"
+                              className="h-7 w-auto shrink-0"
+                            />
+                          )}
                           <span className="font-display font-bold text-[#E3D28A] shrink-0">
                             {p.placement === 1 ? "1st" : p.placement === 2 ? "2nd" : "3rd"}
                           </span>

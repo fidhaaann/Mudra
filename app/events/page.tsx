@@ -4,6 +4,7 @@ import React, { useReducer, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { Search, AlertCircle, RefreshCw } from "lucide-react";
 import { Event } from "@/types/event";
+import { RegistrationClosedLabel, getRegistrationState } from "@/components/events/RegistrationStatus";
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
@@ -259,7 +260,7 @@ export default function EventsPage() {
               <Link
                 key={event.id}
                 href={`/events/${event.id}`}
-                className="group h-full border border-[#E3D28A]/40 bg-[#110B0B] hover:border-[#E3D28A] transition-colors flex flex-col"
+                className="group relative h-full border border-[#E3D28A]/40 bg-[#110B0B] hover:border-[#E3D28A] transition-colors flex flex-col"
               >
                 {/* Image or placeholder */}
                 {event.imageUrl ? (
@@ -276,6 +277,15 @@ export default function EventsPage() {
                 ) : (
                   <div className="w-full aspect-4/5 bg-[#5A0E0B]/10 border-b border-[#E3D28A]/20 flex items-center justify-center text-[10px] text-[#E3D28A]/30 font-display tracking-widest uppercase select-none">
                     MUDRA
+                  </div>
+                )}
+
+                {/* Registration closed (live event) — same shared rule as the event
+                    page; a non-interactive badge over the poster's bottom edge, so
+                    the card's size never changes and it holds no registration link. */}
+                {getRegistrationState(event) === "closed" && (
+                  <div className="pointer-events-none absolute inset-x-0 top-0 aspect-4/5 flex items-end justify-center pb-2 sm:pb-3">
+                    <RegistrationClosedLabel compact />
                   </div>
                 )}
 

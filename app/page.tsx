@@ -3,12 +3,12 @@
 import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import dynamic from "next/dynamic";
-import { motion } from "framer-motion";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import FadeContent from "@/components/ui/FadeContent";
 import { getTeamColor } from "@/lib/team-colors";
 import { TeamWordmark } from "@/components/ui/TeamNameLanguageTransition";
+import { StandingsPodium, StandingsPodiumSkeleton } from "@/components/ui/StandingsPodium";
 import { AwardWinners } from "@/components/ui/AwardWinners";
 import { LeaderboardResponse, TeamLeaderboardEntry } from "@/types/leaderboard";
 
@@ -62,7 +62,11 @@ export default function HomePage() {
   }, []);
 
   const standings: TeamLeaderboardEntry[] = leaderboard?.teams ?? [];
-  const hasResults = (leaderboard?.completedEventCount ?? 0) > 0;
+  // Standings are live once any event is completed OR the API reports points —
+  // MANUAL overrides can set totals before any result exists. (Totals, ranks
+  // and gaps are already effective values from /api/leaderboard.)
+  const hasResults =
+    (leaderboard?.completedEventCount ?? 0) > 0 || standings.some((t) => t.totalPoints !== 0);
 
   // ── FadeContent trigger ──────────────────────────────────────────────────
   const [heroReady, setHeroReady] = useState(false);
@@ -218,24 +222,8 @@ export default function HomePage() {
           </p>
         </div>
 
-        {/* 4 Team Score Cards */}
-        {leaderboardLoading && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4" aria-label="Loading standings">
-            {[0, 1, 2, 3].map((idx) => (
-              <div
-                key={idx}
-                className="border border-[#E3D28A]/40 bg-[#110B0B] p-3 sm:p-5 text-center space-y-3 relative shadow-lg shadow-black/50 animate-pulse"
-              >
-                <div className="h-3 w-16 mx-auto bg-[#E02E0B]/20" />
-                <div className="h-6 w-20 mx-auto bg-[#E3D28A]/10" />
-                <div className="border-t border-[#E3D28A]/25 pt-3">
-                  <div className="h-10 w-14 mx-auto bg-[#E3D28A]/10" />
-                  <div className="h-2 w-20 mx-auto mt-2 bg-[#E3D28A]/10" />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        {/* Championship podium (same leaderboard data; ranks from the API) */}
+        {leaderboardLoading && <StandingsPodiumSkeleton />}
 
         {!leaderboardLoading && leaderboardError && (
           <div className="border border-[#E02E0B]/40 bg-[#5A0E0B]/10 p-6 text-center space-y-3">
@@ -250,40 +238,9 @@ export default function HomePage() {
           </div>
         )}
 
-        {!leaderboardLoading && !leaderboardError && <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {standings.map((standing, idx) => (
-            <motion.div
-              key={standing.teamId}
-              initial={{ opacity: 0, y: 15 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.4, delay: idx * 0.08 }}
-              className="border border-[#E3D28A]/40 bg-[#110B0B] p-3 sm:p-5 text-center space-y-3 relative hover:border-[#E3D28A] transition-colors shadow-lg shadow-black/50"
-            >
-              <div className="relative z-10 space-y-3">
-                <div className="font-display text-[10px] sm:text-xs tracking-widest text-[#E02E0B] uppercase font-bold">
-                  {hasResults ? `RANK ${standing.rank}` : `TEAM 0${idx + 1}`}
-                </div>
-
-                <h3
-                  className="font-display font-black text-lg sm:text-xl tracking-wider"
-                  style={{ color: getTeamColor(standing.teamId) }}
-                >
-                  <TeamWordmark teamId={standing.teamId} teamName={standing.teamName} align="center" />
-                </h3>
-
-                <div className="border-t border-[#E3D28A]/25 pt-3">
-                  <div className="font-display font-black text-3xl sm:text-4xl text-[#E3D28A]">
-                    {hasResults ? standing.totalPoints : "—"}
-                  </div>
-                  <div className="font-body text-[10px] text-[#E3D28A]/50 tracking-wider uppercase mt-1">
-                    TOTAL POINTS
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </div>}
+        {!leaderboardLoading && !leaderboardError && (
+          <StandingsPodium standings={standings} hasResults={hasResults} />
+        )}
 
         {/* Points Breakdown Table */}
         {!leaderboardLoading && !leaderboardError && <div className="home-standings-table-scroll border border-[#E3D28A]/40 bg-[#110B0B] overflow-x-auto overflow-y-hidden min-w-0 shadow-xl shadow-black/60">
