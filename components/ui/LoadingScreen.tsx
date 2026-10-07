@@ -68,8 +68,8 @@ function StoneBar({ progress, reducedMotion }: StoneBarProps) {
   return (
     <div
       className="flex flex-col items-center gap-3 w-full"
-      // Tracks the mudra frame width (clamp(96px, 28vw, …)) on phones; 200px cap on desktop.
-      style={{ maxWidth: "min(200px, max(96px, 28vw))" }}
+      // Same width as the mudra frame at every viewport.
+      style={{ maxWidth: "clamp(96px, 28vw, 180px)" }}
       aria-hidden="true"
     >
       <svg
