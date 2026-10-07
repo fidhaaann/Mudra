@@ -68,7 +68,8 @@ function StoneBar({ progress, reducedMotion }: StoneBarProps) {
   return (
     <div
       className="flex flex-col items-center gap-3 w-full"
-      style={{ maxWidth: "min(200px, 55vw)" }}
+      // Tracks the mudra frame width (clamp(96px, 28vw, …)) on phones; 200px cap on desktop.
+      style={{ maxWidth: "min(200px, max(96px, 28vw))" }}
       aria-hidden="true"
     >
       <svg
@@ -138,6 +139,109 @@ function StoneBar({ progress, reducedMotion }: StoneBarProps) {
       >
         MUDRA
       </div>
+    </div>
+  );
+}
+
+// ─── etched lotus backdrop ───────────────────────────────────────────────────
+// Static staggered lotus pattern carved into the background. One alpha-mask
+// tile (staggering baked in) is repeated via CSS mask; offset shadow/highlight
+// copies under a dark face give the recessed, etched edge.
+
+const LOTUS_TILE = "url(/images/lotus-tile.png)";
+// Tile is 608×784; width-only sizing keeps the flower aspect ratio.
+const LOTUS_TILE_W = "clamp(150px, 36vw, 280px)";
+
+function lotusLayer(dy: string, background: string): React.CSSProperties {
+  const position = `50% calc(50% + ${dy})`;
+  return {
+    position:           "absolute",
+    inset:              0,
+    background,
+    maskImage:          LOTUS_TILE,
+    maskSize:           `${LOTUS_TILE_W} auto`,
+    maskRepeat:         "repeat",
+    maskPosition:       position,
+    WebkitMaskImage:    LOTUS_TILE,
+    WebkitMaskSize:     `${LOTUS_TILE_W} auto`,
+    WebkitMaskRepeat:   "repeat",
+    WebkitMaskPosition: position,
+  };
+}
+
+// Paper tremble: three nested wrappers move the whole pattern as one layer
+// (no per-flower loops). Co-prime durations and uneven keyframe stops keep the
+// combined motion from reading as a loop. Cycles are short (~1–2.3s) because
+// the whole intro only lasts ~2.5s; amplitudes stay around a pixel.
+const LOTUS_TREMBLE_CSS = `
+@keyframes lotus-drift {
+  0%   { transform: translate3d(0, 0, 0); }
+  14%  { transform: translate3d(0.8px, -0.5px, 0); }
+  31%  { transform: translate3d(-0.4px, 0.9px, 0); }
+  47%  { transform: translate3d(-1px, -0.2px, 0); }
+  66%  { transform: translate3d(0.5px, 0.7px, 0); }
+  84%  { transform: translate3d(-0.3px, -0.8px, 0); }
+  100% { transform: translate3d(0, 0, 0); }
+}
+@keyframes lotus-sway {
+  0%   { transform: rotate(0deg); }
+  21%  { transform: rotate(0.1deg); }
+  44%  { transform: rotate(-0.08deg); }
+  69%  { transform: rotate(0.05deg); }
+  86%  { transform: rotate(-0.09deg); }
+  100% { transform: rotate(0deg); }
+}
+@keyframes lotus-breathe {
+  0%   { transform: scale(1) skew(0deg, 0deg); }
+  26%  { transform: scale(1.004) skew(0.08deg, -0.04deg); }
+  53%  { transform: scale(0.997) skew(-0.05deg, 0.07deg); }
+  78%  { transform: scale(1.003) skew(0.03deg, -0.06deg); }
+  100% { transform: scale(1) skew(0deg, 0deg); }
+}
+.lotus-drift   { animation: lotus-drift   1.37s ease-in-out infinite; }
+.lotus-sway    { animation: lotus-sway    1.91s ease-in-out infinite -0.7s; }
+.lotus-breathe { animation: lotus-breathe 2.33s ease-in-out infinite -1.2s; will-change: transform; }
+@media (prefers-reduced-motion: reduce) {
+  .lotus-drift, .lotus-sway, .lotus-breathe { animation: none; }
+}
+`;
+
+// Oversized so sub-degree rotation never exposes an uncovered edge.
+const LOTUS_MOTION_BOX: React.CSSProperties = { position: "absolute", inset: "-16px" };
+
+function LotusBackdrop() {
+  return (
+    <div
+      className="absolute inset-0 overflow-hidden pointer-events-none"
+      style={{ zIndex: -1 }}
+      aria-hidden="true"
+    >
+      <style>{LOTUS_TREMBLE_CSS}</style>
+      <div className="lotus-drift" style={LOTUS_MOTION_BOX}>
+        <div className="lotus-sway" style={{ position: "absolute", inset: 0 }}>
+          <div className="lotus-breathe" style={{ position: "absolute", inset: 0 }}>
+            {/* shadow along the upper edge of the cut */}
+            <div style={lotusLayer("-1px", "rgba(0, 0, 0, 0.55)")} />
+            {/* muted-gold catch-light along the lower edge */}
+            <div style={lotusLayer("1px", "rgba(227, 210, 138, 0.075)")} />
+            {/* recessed face: dark antique gold warming into brown at the edges */}
+            <div
+              style={lotusLayer(
+                "0px",
+                "radial-gradient(ellipse at 50% 45%, #2A2014 0%, #22190F 55%, #1B130D 100%)"
+              )}
+            />
+          </div>
+        </div>
+      </div>
+      {/* vignette keeps the centre and edges quiet */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(circle at 50% 50%, rgba(17,11,11,0.55) 0%, rgba(17,11,11,0) 32%), radial-gradient(ellipse at 50% 50%, rgba(17,11,11,0) 55%, rgba(10,6,6,0.7) 100%)",
+        }}
+      />
     </div>
   );
 }
@@ -262,11 +366,13 @@ export const LoadingScreen: React.FC = () => {
           initial={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: EXIT_MS / 1000, ease: "easeInOut" }}
-          className="fixed inset-0 z-[9999] bg-[#110B0B] flex flex-col items-center justify-center gap-6 sm:gap-8 select-none overflow-hidden"
+          className="fixed inset-0 z-9999 bg-[#110B0B] flex flex-col items-center justify-center gap-6 sm:gap-8 select-none overflow-hidden"
           aria-hidden="true"
         >
+          <LotusBackdrop />
+
           <div
-            className="relative flex-shrink-0"
+            className="relative shrink-0"
             style={{
               width:  "clamp(96px, 28vw, 180px)",
               height: "clamp(96px, 28vw, 180px)",
