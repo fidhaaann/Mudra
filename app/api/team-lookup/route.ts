@@ -41,6 +41,11 @@ export async function GET(request: NextRequest) {
   switch (result.type) {
     case 'success':
       return NextResponse.json({ data: result.data }, { status: 200 });
+    case 'candidates':
+      // Possible matches carry name/semester/branch only — never the team.
+      return NextResponse.json({ matches: result.matches, more: result.more }, { status: 200 });
+    case 'query_too_short':
+      return NextResponse.json({ error: result.message }, { status: 400 });
     case 'not_found':
       return NextResponse.json({ error: result.message }, { status: 404 });
     case 'multiple_matches':

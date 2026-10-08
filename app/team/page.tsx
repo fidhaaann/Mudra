@@ -1,9 +1,29 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import dynamic from "next/dynamic";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ChevronDown } from "lucide-react";
 import { lookupStudentTeam } from "@/lib/lookup";
-import { StudentLookupResult } from "@/types/lookup";
+import { resolveHouse } from "@/lib/houses";
+import { LotusEtch } from "@/components/ui/LotusEtch";
+import { StudentLookupCandidate, StudentLookupQuery, StudentLookupResult } from "@/types/lookup";
+
+// WebGL card: client-only and code-split so three.js isn't in the page's
+// initial bundle. Its frame reserves the space, so nothing shifts on load.
+const TeamLookupCard = dynamic(() => import("@/components/ui/TeamLookupCard"), { ssr: false });
+
+// Desktop (lg) slides the card box out sideways; smaller screens slide it down.
+const DESKTOP_MQ = "(min-width: 1024px)";
+const subscribeDesktop = (cb: () => void) => {
+  const mql = window.matchMedia(DESKTOP_MQ);
+  mql.addEventListener("change", cb);
+  return () => mql.removeEventListener("change", cb);
+};
+const getDesktop = () => window.matchMedia(DESKTOP_MQ).matches;
+const getDesktopServer = () => false;
+
+const REVEAL_EASE = [0.22, 1, 0.36, 1] as const;
 
 const SEMESTERS = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII"] as const;
 const DEPARTMENTS = ["CE", "CSE", "EC", "EEE", "EL", "SFE", "IT", "ME", "RA"] as const;
@@ -14,29 +34,82 @@ export default function TeamPage() {
   const [branch, setBranch] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<StudentLookupResult | null>(null);
+  // House whose card artwork failed to load (falls back to the neutral card).
+  const [failedHouse, setFailedHouse] = useState<string | null>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim() || !semester.trim() || !branch.trim()) return;
+  const student = result?.found ? result.student : undefined;
+  const house = student ? resolveHouse(student.team) : null;
+  const cardUnavailable = !!student && (!house || failedHouse === house.id);
+  const showHouseCard = !!house && !cardUnavailable;
 
+  const isDesktop = useSyncExternalStore(subscribeDesktop, getDesktop, getDesktopServer);
+  const reduceMotion = useReducedMotion() ?? false;
+
+  // Card box: opens when a search finds a student, stays open while a new
+  // search runs, closes again if a search finds nobody.
+  const [boxOpen, setBoxOpen] = useState(false);
+  // True once the box has finished sliding in — only then does the card drop.
+  const [boxSettled, setBoxSettled] = useState(false);
+  const cardLabel = showHouseCard ? `${house.name} house ID card` : "House card unavailable";
+  const showCard = boxSettled && !!student;
+
+  // Bring the newly dropped card into view (on mobile it sits below the form).
+  useEffect(() => {
+    if (!showCard) return;
+    const el = cardRef.current;
+    if (!el) return;
+    const { top, bottom } = el.getBoundingClientRect();
+    if (top < 0 || bottom > window.innerHeight) {
+      el.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" });
+    }
+  }, [showCard, house, reduceMotion]);
+
+  const revealTransition = { duration: reduceMotion ? 0 : 0.7, ease: REVEAL_EASE };
+  // Desktop: slides out from behind the search box to the right.
+  // Mobile: opens downward beneath the search box.
+  const boxVariants = isDesktop
+    ? { hidden: { opacity: 0, x: -240 }, shown: { opacity: 1, x: 0 } }
+    : { hidden: { opacity: 0, height: 0 }, shown: { opacity: 1, height: "auto" } };
+
+  const runLookup = async (query: StudentLookupQuery) => {
     setLoading(true);
     setResult(null);
+    setFailedHouse(null);
 
     try {
-      const res = await lookupStudentTeam({ name, semester, branch });
+      const res = await lookupStudentTeam(query);
       setResult(res);
+      const found = res.found && !!res.student;
+      setBoxOpen(found);
+      if (!found) setBoxSettled(false);
     } catch {
       setResult({
         found: false,
         message: "An unexpected error occurred during lookup.",
       });
+      setBoxOpen(false);
+      setBoxSettled(false);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || !semester.trim() || !branch.trim()) return;
+    void runLookup({ name, semester, branch });
+  };
+
+  // Picking a possible match looks up that exact registered name; the team
+  // is only shown from this point on.
+  const handleSelectMatch = (match: StudentLookupCandidate) => {
+    setName(match.name);
+    void runLookup({ name: match.name, semester: match.semester, branch: match.branch });
+  };
+
   return (
-    <div className="max-w-md mx-auto px-6 sm:px-8 pt-28 pb-16 space-y-8">
+    <div className="w-full max-w-5xl mx-auto px-5 sm:px-8 pt-28 pb-16 space-y-8">
       {/* Title */}
       <div className="space-y-1.5 text-center">
         <h1 className="font-display font-black text-3xl sm:text-4xl text-[#E3D28A] tracking-wider uppercase">
@@ -47,8 +120,24 @@ export default function TeamPage() {
         </p>
       </div>
 
-      {/* Clean Form with Lighter Stroke */}
-      <form onSubmit={handleSubmit} className="border border-[#E3D28A]/40 bg-[#110B0B] p-6 space-y-5">
+      {/* Search box + card box: same size. The search box starts centred; on
+          a successful search it glides left (desktop) as the card box slides
+          out to its right — or down beneath it on mobile — then the card drops. */}
+      <div className="flex flex-col items-center gap-6 lg:flex-row lg:items-start lg:justify-center lg:gap-8">
+      <motion.div
+        layout="position"
+        transition={revealTransition}
+        className="relative z-10 flex flex-col w-full max-w-115 min-h-95 sm:min-h-105 lg:min-h-150 border border-[#E3D28A]/40 bg-[#110B0B]"
+      >
+      {/* One etched dancer pair (same baked shadow/highlight/face treatment as
+          the card box's lotus) in its own space above the form — never behind
+          the fields or the button. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none flex-1 min-h-40 sm:min-h-48 mx-6 mt-6 sm:mx-8 sm:mt-8 bg-center bg-no-repeat bg-contain"
+        style={{ backgroundImage: "url(/images/dancers-etched.webp)" }}
+      />
+      <form onSubmit={handleSubmit} className="w-full p-6 sm:p-8 space-y-5">
         <div>
           <label className="block font-display text-[11px] tracking-wider text-[#E3D28A]/70 uppercase mb-1.5">
             NAME
@@ -130,21 +219,44 @@ export default function TeamPage() {
           {loading ? "SEARCHING..." : "FIND TEAM"}
         </button>
 
-        {result && (
+        <div aria-live="polite">
+        {result?.found && result.student && (
+          // The ID card is the visible result; this is for screen readers.
+          <p className="sr-only">
+            {result.student.name}, Semester {result.student.semester}, {result.student.branch}.
+            Allocated house: {result.student.team}.
+            {cardUnavailable ? " House card unavailable." : ""}
+          </p>
+        )}
+        {result && !(result.found && result.student) && (
           <div className="pt-4 border-t border-[#E3D28A]/25 text-center font-body text-xs">
-            {result.found && result.student ? (
-              <div className="space-y-2.5 p-4 border border-[#E02E0B] bg-[#5A0E0B]/20">
-                <div className="text-[10px] text-[#E3D28A]/60 uppercase tracking-widest">ALLOCATED HOUSE</div>
-                <div className="font-display font-black text-2xl sm:text-3xl text-[#E3D28A]">
-                  {result.student.team}
+            {result.matches && result.matches.length > 0 ? (
+              <div className="space-y-2.5 text-left">
+                <div className="text-center text-[10px] text-[#E3D28A]/60 uppercase tracking-widest">
+                  POSSIBLE MATCHES
                 </div>
-                <div className="pt-2 border-t border-[#E3D28A]/15 text-[11px] text-[#E3D28A]/75 flex flex-wrap justify-center items-center gap-2">
-                  <span>{result.student.name}</span>
-                  <span>•</span>
-                  <span>Sem {result.student.semester}</span>
-                  <span>•</span>
-                  <span>{result.student.branch}</span>
-                </div>
+                <ul className="space-y-1.5">
+                  {result.matches.map((match, i) => (
+                    <li key={`${match.name}-${i}`}>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectMatch(match)}
+                        disabled={loading}
+                        className="w-full px-3.5 py-2.5 border border-[#E3D28A]/25 bg-[#110B0B]/80 text-left hover:border-[#E02E0B] focus:outline-none focus-visible:border-[#E02E0B] transition-colors disabled:opacity-50"
+                      >
+                        <div className="text-xs text-[#E3D28A]">{match.name}</div>
+                        <div className="text-[10px] text-[#E3D28A]/55 tracking-wider">
+                          Sem {match.semester} • {match.branch}
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-center text-[10px] italic text-[#E3D28A]/50">
+                  {result.moreMatches
+                    ? "More names match — type more of your name to narrow it down."
+                    : "Select your name to see your house."}
+                </p>
               </div>
             ) : (
               <div className="p-3.5 border border-[#E3D28A]/20 bg-[#110B0B]/80 text-[#E3D28A]/80">
@@ -153,7 +265,45 @@ export default function TeamPage() {
             )}
           </div>
         )}
+        </div>
       </form>
+      </motion.div>
+
+      <AnimatePresence initial={false}>
+        {boxOpen && (
+          <motion.div
+            key="card-box"
+            variants={boxVariants}
+            initial="hidden"
+            animate="shown"
+            exit="hidden"
+            transition={revealTransition}
+            onAnimationComplete={(definition) => {
+              if (definition === "shown") setBoxSettled(true);
+            }}
+            className="relative z-0 w-full max-w-115 overflow-hidden"
+          >
+            {/* Etched lotus surface (card box only); the strap hangs from its top edge */}
+            <div
+              ref={cardRef}
+              className="relative isolate overflow-hidden h-95 sm:h-105 lg:h-150 border border-[#E3D28A]/40 bg-[#110B0B]"
+            >
+              <LotusEtch />
+              {/* Mounted per successful search, after the box has slid in, so it drops in. */}
+              {showCard && (
+                <TeamLookupCard
+                  house={showHouseCard ? house : null}
+                  student={student}
+                  status="unavailable"
+                  label={cardLabel}
+                  onImageError={() => house && setFailedHouse(house.id)}
+                />
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      </div>
     </div>
   );
 }
