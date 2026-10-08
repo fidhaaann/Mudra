@@ -38,10 +38,18 @@ export async function lookupStudentTeam(query: StudentLookupQuery): Promise<Stud
       };
     }
 
+    if (res.ok && Array.isArray(json?.matches) && json.matches.length > 0) {
+      return {
+        found: false,
+        matches: json.matches,
+        moreMatches: json.more === true,
+      };
+    }
+
     if (res.status === 404) {
       return {
         found: false,
-        message: json?.error || "No student record found matching the details provided.",
+        message: json?.error || "No matching student found.",
       };
     }
 
