@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Search, AlertCircle, RefreshCw } from "lucide-react";
 import { Event } from "@/types/event";
 import { RegistrationClosedLabel, getRegistrationState } from "@/components/events/RegistrationStatus";
+import { fallbackToOriginal, posterSources } from "@/lib/cloudinary";
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
@@ -267,7 +268,10 @@ export default function EventsPage() {
                   <div className="w-full aspect-4/5 bg-[#5A0E0B]/20 border-b border-[#E3D28A]/25 overflow-hidden flex items-center justify-center">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={event.imageUrl}
+                      {...posterSources(event.imageUrl)}
+                      // 2 columns below lg, 3 columns (~350px cards) from lg up
+                      sizes="(min-width: 1024px) 360px, 50vw"
+                      onError={(e) => fallbackToOriginal(e, event.imageUrl!)}
                       alt={event.name}
                       loading="lazy"
                       decoding="async"

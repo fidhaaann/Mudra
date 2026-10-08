@@ -52,20 +52,42 @@ export default function TeamPage() {
   // True once the box has finished sliding in — only then does the card drop.
   const [boxSettled, setBoxSettled] = useState(false);
   const cardLabel = showHouseCard ? `${house.name} house ID card` : "House card unavailable";
-  const showCard = boxSettled && !!student;
+  // Warm the card's code chunk (three.js) while the visitor fills in the form,
+  // so the first reveal doesn't wait on the download. Safari has no
+  // requestIdleCallback, hence the timeout fallback.
+  useEffect(() => {
+    const warm = () => {
+      void import("@/components/ui/TeamLookupCard");
+    };
+    const w = window as Window & {
+      requestIdleCallback?: (cb: () => void) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    if (w.requestIdleCallback) {
+      const id = w.requestIdleCallback(warm);
+      return () => w.cancelIdleCallback?.(id);
+    }
+    const timer = setTimeout(warm, 1500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // The card component mounts as soon as the box starts opening, so its faces
+  // are prepared during the slide; it only drops once the box has settled.
+  const showCard = boxOpen && !!student;
+  const cardDropping = showCard && boxSettled;
 
   // Bring the newly dropped card into view (on mobile it sits below the form).
   useEffect(() => {
-    if (!showCard) return;
+    if (!cardDropping) return;
     const el = cardRef.current;
     if (!el) return;
     const { top, bottom } = el.getBoundingClientRect();
     if (top < 0 || bottom > window.innerHeight) {
       el.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" });
     }
-  }, [showCard, house, reduceMotion]);
+  }, [cardDropping, house, reduceMotion]);
 
-  const revealTransition = { duration: reduceMotion ? 0 : 0.7, ease: REVEAL_EASE };
+  const revealTransition = { duration: reduceMotion ? 0 : 0.45, ease: REVEAL_EASE };
   // Desktop: slides out from behind the search box to the right.
   // Mobile: opens downward beneath the search box.
   const boxVariants = isDesktop
@@ -286,14 +308,16 @@ export default function TeamPage() {
             {/* Etched lotus surface (card box only); the strap hangs from its top edge */}
             <div
               ref={cardRef}
-              className="relative isolate overflow-hidden h-95 sm:h-105 lg:h-150 border border-[#E3D28A]/40 bg-[#110B0B]"
+              className="relative isolate overflow-hidden h-95 sm:h-105 lg:h-150 max-h-[85svh] border border-[#E3D28A]/40 bg-[#110B0B]"
             >
               <LotusEtch />
-              {/* Mounted per successful search, after the box has slid in, so it drops in. */}
+              {/* Mounted per successful search while the box opens (faces get
+                  prepared); drops in once the box has slid in. */}
               {showCard && (
                 <TeamLookupCard
                   house={showHouseCard ? house : null}
                   student={student}
+                  dropReady={boxSettled}
                   status="unavailable"
                   label={cardLabel}
                   onImageError={() => house && setFailedHouse(house.id)}

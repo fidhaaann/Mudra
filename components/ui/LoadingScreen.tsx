@@ -6,8 +6,11 @@ import React, {
   useRef,
   useCallback,
   useMemo,
+  useSyncExternalStore,
 } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { Music2 } from "lucide-react";
+import { getMusicStatus, getServerMusicStatus, subscribeMusicStatus } from "@/lib/music-status";
 
 // ─── image sources ────────────────────────────────────────────────────────────
 // 600px WebP renditions of the 2858px PNG artwork: the frame is at most 180 CSS
@@ -246,6 +249,52 @@ function LotusBackdrop() {
   );
 }
 
+// ─── music hint ──────────────────────────────────────────────────────────────
+// Browsers block sound until the visitor interacts, so invite a tap. Shown
+// only while music is neither playing nor muted, after a short grace period
+// (so it doesn't flash when autoplay is allowed), and hidden on first touch.
+// Absolutely positioned: the mudra and progress bar don't move.
+
+const HINT_DELAY_MS = 700;
+
+function MusicHint({ reducedMotion }: { reducedMotion: boolean }) {
+  const status = useSyncExternalStore(subscribeMusicStatus, getMusicStatus, getServerMusicStatus);
+  const [armed, setArmed] = useState(false);
+  const [touched, setTouched] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setArmed(true), HINT_DELAY_MS);
+    const onTouch = () => setTouched(true);
+    const opts = { capture: true, passive: true } as const;
+    window.addEventListener("pointerdown", onTouch, opts);
+    window.addEventListener("keydown", onTouch, opts);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("pointerdown", onTouch, opts);
+      window.removeEventListener("keydown", onTouch, opts);
+    };
+  }, []);
+
+  const show = armed && !touched && !!status && !status.playing && !status.muted;
+
+  return (
+    <div
+      className="pointer-events-none absolute inset-x-0 flex justify-center px-6"
+      style={{
+        bottom: "max(2.5rem, calc(env(safe-area-inset-bottom) + 1.5rem))",
+        opacity: show ? 1 : 0,
+        transition: reducedMotion ? "none" : "opacity 400ms ease",
+      }}
+    >
+      <p className="text-center text-balance font-body text-[10px] sm:text-[11px] uppercase tracking-[0.16em] sm:tracking-[0.25em] text-[#E3D28A]/60">
+        {/* Inline so it stays with the first word if the text wraps */}
+        <Music2 aria-hidden="true" className="mr-2 inline-block size-3 align-[-2px]" strokeWidth={1.75} />
+        Touch anywhere for the musical experience
+      </p>
+    </div>
+  );
+}
+
 // ─── main component ───────────────────────────────────────────────────────────
 
 export const LoadingScreen: React.FC = () => {
@@ -409,6 +458,8 @@ export const LoadingScreen: React.FC = () => {
           </div>
 
           <StoneBar progress={barProgress} reducedMotion={shouldReduceMotion} />
+
+          <MusicHint reducedMotion={shouldReduceMotion} />
         </motion.div>
       )}
     </AnimatePresence>

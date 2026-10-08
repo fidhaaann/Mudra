@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Volume2, VolumeX } from "lucide-react";
+import { publishMusicStatus } from "@/lib/music-status";
 
 // Mounted once in the root layout. Layouts persist across App Router
 // navigations, so this single Audio instance keeps playing between pages.
@@ -64,6 +65,11 @@ export function BackgroundMusic() {
   const muted = useSyncExternalStore(subscribeMuted, readMuted, getServerMuted);
   const [playing, setPlaying] = useState(false);
   const [controlVisible, setControlVisible] = useState(() => loadingDone);
+
+  // Let other UI (the loading screen's "touch anywhere" hint) follow the state.
+  useEffect(() => {
+    publishMusicStatus({ playing, muted });
+  }, [playing, muted]);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);

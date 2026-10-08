@@ -220,9 +220,18 @@ interface TeamLookupCardProps {
   label: string;
   /** Called when the house artwork fails to load. */
   onImageError: () => void;
+  /** When false, faces are prepared but the card waits to drop (default true). */
+  dropReady?: boolean;
 }
 
-export default function TeamLookupCard({ house, student, status, label, onImageError }: TeamLookupCardProps) {
+export default function TeamLookupCard({
+  house,
+  student,
+  status,
+  label,
+  onImageError,
+  dropReady = true,
+}: TeamLookupCardProps) {
   const details = student && { name: student.name, semester: student.semester, branch: student.branch };
   const front: Face = house
     ? { kind: "art", src: house.frontImage, student: details }
@@ -258,9 +267,10 @@ export default function TeamLookupCard({ house, student, status, label, onImageE
   const visible = shown && (shown.key === wantedKey || !shown.isHouse) ? shown : null;
 
   // Lanyard mounts (and plays its drop-in) only once the first faces are
-  // ready, so the card never drops in blank.
+  // composed and the parent says the box is ready (dropReady),
+  // so the card never drops in blank or mid-slide.
   const [ready, setReady] = useState(false);
-  if (visible && !ready) setReady(true);
+  if (visible && dropReady && !ready) setReady(true);
 
   return (
     <div role="img" aria-label={label} className="h-full w-full">
@@ -273,8 +283,8 @@ export default function TeamLookupCard({ house, student, status, label, onImageE
         size={0.57}
         strapColor="#e02e0b"
         strapWidth={0.95}
-        gravity={0.85}
-        damping={0.6}
+        gravity={1.3}
+        damping={0.7}
         breeze={0.6}
       />}
     </div>

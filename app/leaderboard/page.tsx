@@ -90,6 +90,21 @@ function TeamBarChart({ teams, hasResults }: ChartProps) {
     [teams]
   );
 
+  // The SVG scales with its width (viewBox 400), so on narrow phones its 9-unit
+  // labels render at ~6px. Scale label text up just enough to stay legible
+  // (≈9px) below a 400px-wide chart; 1 (unchanged) on tablets and desktops.
+  const [labelScale, setLabelScale] = useState(1);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(([entry]) => {
+      const width = entry.contentRect.width;
+      if (width > 0) setLabelScale(Math.min(1.6, Math.max(1, 400 / width)));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   // Chart geometry (SVG units)
   const PAD_LEFT = 44;
   const PAD_RIGHT = 16;
@@ -134,7 +149,8 @@ function TeamBarChart({ teams, hasResults }: ChartProps) {
 
   // Touch support: synthesise a clientX/Y from touch coordinates
   function handleTouchStart(team: TeamLeaderboardEntry, e: React.TouchEvent<SVGGElement>) {
-    e.preventDefault();
+    // No preventDefault(): React registers touchstart as a passive listener, so
+    // it was always ignored (and logged a console error on every tap).
     const touch = e.touches[0];
     if (touch) {
       setHovered(team.teamId);
@@ -170,7 +186,7 @@ function TeamBarChart({ teams, hasResults }: ChartProps) {
     // overflow-hidden ensures no child can push the container wider
     <div
       ref={containerRef}
-      className="relative w-full select-none overflow-hidden [container-type:inline-size]"
+      className="relative w-full select-none overflow-hidden @container"
       aria-label="Team points bar chart"
       role="img"
     >
@@ -245,7 +261,7 @@ function TeamBarChart({ teams, hasResults }: ChartProps) {
                 x={PAD_LEFT - 6}
                 y={y + 4}
                 textAnchor="end"
-                fontSize={9}
+                fontSize={9 * labelScale}
                 fontFamily="var(--font-body-sans)"
                 fill={COLORS.gold}
                 fillOpacity={0.4}
@@ -353,7 +369,7 @@ function TeamBarChart({ teams, hasResults }: ChartProps) {
                   x={cx}
                   y={barY - 5}
                   textAnchor="middle"
-                  fontSize={9}
+                  fontSize={9 * labelScale}
                   fontFamily="var(--font-body-sans)"
                   fill={color}
                   fillOpacity={0.9}
@@ -366,9 +382,11 @@ function TeamBarChart({ teams, hasResults }: ChartProps) {
               {hasResults && (
                 <text
                   x={cx}
-                  y={PAD_TOP + chartH + 30}
+                  // Moves down with the narrow-screen label scale so the larger
+                  // wordmark above it never touches it (unchanged when scale is 1).
+                  y={PAD_TOP + chartH + 30 + 10 * (labelScale - 1)}
                   textAnchor="middle"
-                  fontSize={9}
+                  fontSize={9 * labelScale}
                   fontFamily="var(--font-display-serif)"
                   fill={COLORS.fire}
                   fillOpacity={0.8}
@@ -386,7 +404,7 @@ function TeamBarChart({ teams, hasResults }: ChartProps) {
             x={(400 + PAD_LEFT) / 2}
             y={PAD_TOP + chartH / 2}
             textAnchor="middle"
-            fontSize={10}
+            fontSize={10 * labelScale}
             fontFamily="var(--font-body-sans)"
             fill={COLORS.gold}
             fillOpacity={0.3}
@@ -398,8 +416,13 @@ function TeamBarChart({ teams, hasResults }: ChartProps) {
       </svg>
 
       {/* Team wordmark labels, positioned in viewBox units over the SVG.
-          Font size is 1/40 of the chart width, i.e. 10 viewBox units. */}
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 [font-size:2.5cqw]">
+          Font size is 1/40 of the chart width (10 viewBox units), times the
+          same narrow-screen label scale as the SVG text. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0"
+        style={{ fontSize: `calc(2.5cqw * ${labelScale})` }}
+      >
         {teams.map((team, i) => {
           const slotW = (400 - PAD_LEFT - PAD_RIGHT) / teams.length;
           const cx = PAD_LEFT + slotW * i + slotW / 2;
@@ -430,11 +453,11 @@ function LoadingSkeleton() {
   return (
     <div className="space-y-3" aria-label="Loading leaderboard">
       {/* Chart skeleton */}
-      <div className="border border-[#E3D28A]/20 bg-[#110B0B] p-6 animate-pulse h-[260px] flex items-end gap-4 justify-center overflow-hidden">
+      <div className="border border-[#E3D28A]/20 bg-[#110B0B] p-6 animate-pulse h-65 flex items-end gap-4 justify-center overflow-hidden">
         {[60, 80, 45, 70].map((h, i) => (
           <div
             key={i}
-            className="bg-[#E3D28A]/10 w-12 sm:w-14 rounded-sm flex-shrink-0"
+            className="bg-[#E3D28A]/10 w-12 sm:w-14 rounded-sm shrink-0"
             style={{ height: `${h}%` }}
           />
         ))}

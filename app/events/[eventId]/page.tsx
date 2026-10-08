@@ -8,6 +8,7 @@ import { ArrowLeft, AlertCircle, RefreshCw } from "lucide-react";
 import { Event } from "@/types/event";
 import { RegistrationStatus } from "@/components/events/RegistrationStatus";
 import { EventResult } from "@/types/result";
+import { fallbackToOriginal, posterSources } from "@/lib/cloudinary";
 
 // Medal icons for result placements (Flaticon, "first/second/third").
 const MEDAL: Record<number, string> = {
@@ -151,15 +152,38 @@ export default function EventDetailPage() {
       </Link>
 
       {/* Loading State */}
+      {/* Mirrors the loaded layout below (same containers, spacing and
+          sections) so the content replaces it without a layout jump. */}
       {loading && (
-        <div className="border border-[#E3D28A]/20 bg-[#110B0B] p-5 sm:p-8 lg:p-10 flex flex-col gap-6 lg:flex-row lg:gap-10 animate-pulse">
+        <div className="border border-[#E3D28A]/20 bg-[#110B0B] p-5 sm:p-8 lg:p-10 flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-10 animate-pulse" aria-label="Loading event">
           <div className="w-full max-w-60 sm:max-w-72 mx-auto shrink-0 lg:mx-0 lg:w-72 lg:max-w-none xl:w-80 aspect-4/5 bg-[#5A0E0B]/10 border border-[#E3D28A]/10" />
-          <div className="min-w-0 flex-1 space-y-6">
-            <div className="h-6 bg-[#E3D28A]/10 w-2/3 rounded-sm" />
-            <div className="h-4 bg-[#E3D28A]/10 w-1/3 rounded-sm" />
-            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-[#E3D28A]/10">
-              <div className="h-12 bg-[#E3D28A]/10 rounded-sm" />
-              <div className="h-12 bg-[#E3D28A]/10 rounded-sm" />
+          <div className="min-w-0 flex-1 space-y-6 lg:border-l lg:border-[#E3D28A]/10 lg:pl-10">
+            {/* Header: category/status row + title */}
+            <div className="space-y-2 border-b border-[#E3D28A]/10 pb-5">
+              <div className="flex items-center justify-between">
+                <div className="h-3 w-28 bg-[#E3D28A]/10 rounded-sm" />
+                <div className="h-5 w-20 bg-[#E3D28A]/10 rounded-sm" />
+              </div>
+              <div className="h-8 sm:h-10 w-3/4 bg-[#E3D28A]/10 rounded-sm" />
+            </div>
+            {/* Details grid: venue, schedule, participation, scoring */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-b border-[#E3D28A]/10 pb-6">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i}>
+                  <div className="h-3.75 w-20 mb-1 bg-[#E3D28A]/10 rounded-sm" />
+                  <div className="h-4 w-36 max-w-full bg-[#E3D28A]/10 rounded-sm" />
+                </div>
+              ))}
+            </div>
+            {/* Registration */}
+            <div className="space-y-2 border-b border-[#E3D28A]/10 pb-6">
+              <div className="h-3.75 w-24 bg-[#E3D28A]/10 rounded-sm" />
+              <div className="h-10 w-40 mx-auto bg-[#E3D28A]/10 rounded-sm" />
+            </div>
+            {/* Results */}
+            <div className="space-y-3">
+              <div className="h-3.75 w-16 bg-[#E3D28A]/10 rounded-sm" />
+              <div className="h-4 w-4/5 bg-[#E3D28A]/10 rounded-sm" />
             </div>
           </div>
         </div>
@@ -201,7 +225,10 @@ export default function EventDetailPage() {
               <div className="w-full aspect-4/5 bg-[#5A0E0B]/20 border border-[#E3D28A]/25 overflow-hidden flex items-center justify-center">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={event.imageUrl}
+                  {...posterSources(event.imageUrl)}
+                  // Poster column: 240px, 288px from sm, 320px from xl
+                  sizes="(min-width: 1280px) 320px, (min-width: 640px) 288px, 240px"
+                  onError={(e) => fallbackToOriginal(e, event.imageUrl!)}
                   alt={event.name}
                   className="w-full h-full object-contain"
                 />
