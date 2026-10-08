@@ -9,7 +9,6 @@ import React, {
   useSyncExternalStore,
 } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { Music2 } from "lucide-react";
 import { getMusicStatus, getServerMusicStatus, subscribeMusicStatus } from "@/lib/music-status";
 
 // ─── image sources ────────────────────────────────────────────────────────────
@@ -136,11 +135,14 @@ function StoneBar({ progress, reducedMotion }: StoneBarProps) {
         )}
       </svg>
 
-      <div
-        className="font-body text-[9px] tracking-[0.25em] text-[#E3D28A] uppercase"
-        style={{ opacity: 0.3 }}
-      >
-        MUDRA
+      <div className="relative">
+        <div
+          className="font-body text-[9px] tracking-[0.25em] text-[#E3D28A] uppercase"
+          style={{ opacity: 0.3 }}
+        >
+          MUDRA
+        </div>
+        <MusicHint reducedMotion={reducedMotion} />
       </div>
     </div>
   );
@@ -253,7 +255,8 @@ function LotusBackdrop() {
 // Browsers block sound until the visitor interacts, so invite a tap. Shown
 // only while music is neither playing nor muted, after a short grace period
 // (so it doesn't flash when autoplay is allowed), and hidden on first touch.
-// Absolutely positioned: the mudra and progress bar don't move.
+// Sits just under the "MUDRA" label, absolutely positioned so the mudra and
+// progress bar don't move.
 
 const HINT_DELAY_MS = 700;
 
@@ -279,16 +282,17 @@ function MusicHint({ reducedMotion }: { reducedMotion: boolean }) {
 
   return (
     <div
-      className="pointer-events-none absolute inset-x-0 flex justify-center px-6"
+      className="pointer-events-none absolute left-1/2 top-full mt-2.5 w-[min(88vw,26rem)] -translate-x-1/2"
       style={{
-        bottom: "max(2.5rem, calc(env(safe-area-inset-bottom) + 1.5rem))",
         opacity: show ? 1 : 0,
         transition: reducedMotion ? "none" : "opacity 400ms ease",
       }}
     >
-      <p className="text-center text-balance font-body text-[10px] sm:text-[11px] uppercase tracking-[0.16em] sm:tracking-[0.25em] text-[#E3D28A]/60">
-        {/* Inline so it stays with the first word if the text wraps */}
-        <Music2 aria-hidden="true" className="mr-2 inline-block size-3 align-[-2px]" strokeWidth={1.75} />
+      {/* Same type style as the "MUDRA" label above it, just smaller. */}
+      <p
+        className="text-center text-balance font-body text-[7px] sm:text-[8px] uppercase tracking-[0.25em] text-[#E3D28A]"
+        style={{ opacity: 0.3 }}
+      >
         Touch anywhere for the musical experience
       </p>
     </div>
@@ -458,8 +462,6 @@ export const LoadingScreen: React.FC = () => {
           </div>
 
           <StoneBar progress={barProgress} reducedMotion={shouldReduceMotion} />
-
-          <MusicHint reducedMotion={shouldReduceMotion} />
         </motion.div>
       )}
     </AnimatePresence>
