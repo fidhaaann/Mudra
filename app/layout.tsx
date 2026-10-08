@@ -6,6 +6,7 @@ import { Navbar } from "@/components/navigation/Navbar";
 import { Footer } from "@/components/navigation/Footer";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
 import { DitherGridBackground } from "@/components/ui/dither-grid-background";
+import { BackgroundMusic } from "@/components/audio/BackgroundMusic";
 
 const wardrum = localFont({
   src: "./fonts/Wardrum-Bold.otf",
@@ -55,6 +56,8 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-[#110B0B] text-[#E3D28A]">
         <LoadingScreen />
+        {/* Single persistent audio instance; layouts don't remount on navigation */}
+        <BackgroundMusic />
         {/* Navbar is fixed/floating — positioned via CSS */}
         <Navbar />
         <div className="relative isolate flex min-h-full min-w-0 flex-1 flex-col">
