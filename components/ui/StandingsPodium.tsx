@@ -14,7 +14,7 @@ import type { TeamLeaderboardEntry } from "@/types/leaderboard";
  * right), each with a flat lighter top face for depth and its rank numeral on
  * the front; rank label, team wordmark and a points chip sit above each pillar,
  * with a laurel wreath (kliwir art, Flaticon) above the leader.
- * Any further team(s) appear in a slim strip beneath the podium floor.
+ * Only the top three are shown; 4th place and below are not displayed here.
  *
  * Purely presentational — the leaderboard API is the source of truth:
  *  - Entries are shown in the order the API returns them (already ranked);
@@ -26,7 +26,7 @@ import type { TeamLeaderboardEntry } from "@/types/leaderboard";
  *    and no MANUAL totals) every team shares rank 1 with 0 points; the podium
  *    then shows neutral, equal pillars and "—" instead of claiming placings.
  *
- * DOM order is rank order (an <ol>), so screen readers read 1st → 4th; CSS
+ * DOM order is rank order (an <ol>), so screen readers read 1st → 3rd; CSS
  * `order` places 2nd left and 3rd right. Rank is always spelled out in text;
  * the big numerals are decorative duplicates.
  */
@@ -77,7 +77,8 @@ export function StandingsPodium({
 }) {
   const reducedMotion = useReducedMotion();
   const podium = standings.slice(0, 3);
-  const others = standings.slice(3);
+  // Ties are checked against every team, so a 3rd place tied with 4th is
+  // still labelled "TIED" even though 4th itself isn't shown.
   const isTied = (entry: TeamLeaderboardEntry) =>
     standings.filter((s) => s.rank === entry.rank).length > 1;
   const points = (entry: TeamLeaderboardEntry) => (hasResults ? String(entry.totalPoints) : "—");
@@ -174,35 +175,6 @@ export function StandingsPodium({
 
       {/* Podium floor */}
       <div aria-hidden="true" className="h-1 bg-[#E3D28A]/40" />
-
-      {/* Remaining team(s): a slim continuation strip beneath the podium */}
-      {others.length > 0 && (
-        <ol start={4} aria-label="Other standings" className="mt-4 flex flex-col gap-2">
-          {others.map((entry, idx) => (
-            <motion.li
-              key={entry.teamId}
-              layout={!reducedMotion}
-              {...enter(3 + idx)}
-              className="flex min-w-0 items-center gap-3 sm:gap-5 border border-[#E3D28A]/20 bg-[#171010] px-3 sm:px-5 pt-4 pb-3"
-            >
-              <span aria-hidden="true" className="w-6 sm:w-8 shrink-0 text-center font-display font-black text-2xl sm:text-3xl leading-none text-[#E3D28A]/60">
-                {hasResults ? entry.rank : "·"}
-              </span>
-              <span className="shrink-0 font-display text-[10px] sm:text-xs font-bold uppercase tracking-widest text-[#E02E0B]">
-                {hasResults ? ordinal(entry.rank) : "—"}
-                {hasResults && isTied(entry) && <span className="ml-1 text-[#E3D28A]/50">TIED</span>}
-              </span>
-              <span
-                className="min-w-0 flex-1 text-center font-display font-black text-sm sm:text-base tracking-wider"
-                style={{ color: getTeamColor(entry.teamId) }}
-              >
-                <TeamWordmark teamId={entry.teamId} teamName={entry.teamName} align="center" />
-              </span>
-              <PointsChip points={points(entry)} />
-            </motion.li>
-          ))}
-        </ol>
-      )}
     </div>
   );
 }
@@ -227,7 +199,6 @@ export function StandingsPodiumSkeleton() {
         ))}
       </div>
       <div className="h-1 bg-[#E3D28A]/20" />
-      <div className="mt-4 h-14 border border-[#E3D28A]/10 bg-[#171010]" />
     </div>
   );
 }

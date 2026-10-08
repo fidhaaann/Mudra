@@ -1,0 +1,31 @@
+// Types for the vendored React Bits <Lanyard /> (JavaScript + CSS variant),
+// matching its documented props. https://reactbits.dev/components/lanyard
+import type { CSSProperties, FC } from "react";
+
+export interface LanyardProps {
+  frontImage?: string;
+  backImage?: string;
+  imageFit?: "cover" | "contain";
+  cardColor?: string;
+  orientation?: "portrait" | "landscape";
+  finish?: "glossy" | "matte" | "holographic" | "metallic";
+  cornerRadius?: number;
+  size?: number;
+  anchor?: "left" | "center" | "right";
+  strapLength?: number;
+  strapImage?: string;
+  strapColor?: string;
+  strapWidth?: number;
+  metal?: "graphite" | "silver" | "gold";
+  gravity?: number;
+  damping?: number;
+  elasticity?: number;
+  breeze?: number;
+  interactive?: boolean;
+  intro?: boolean;
+  className?: string;
+  style?: CSSProperties;
+}
+
+declare const Lanyard: FC<LanyardProps>;
+export default Lanyard;

@@ -69,6 +69,7 @@ export function BackgroundMusic() {
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const attemptingRef = useRef(false);
   const gaveUpRef = useRef(false);
+  const addUnlockRef = useRef<() => void>(() => {});
   const removeUnlockRef = useRef<() => void>(() => {});
   // iOS ignores HTMLMediaElement.volume; route through a GainNode there instead.
   const volumeIgnoredRef = useRef(false);
@@ -77,6 +78,8 @@ export function BackgroundMusic() {
   const attemptPlay = useCallback((fromGesture: boolean) => {
     const audio = audioRef.current;
     if (!audio || readMuted() || gaveUpRef.current) return;
+    // Never start while the page is in the background.
+    if (document.visibilityState === "hidden") return;
     if (attemptingRef.current || !audio.paused) return;
 
     if (fromGesture && volumeIgnoredRef.current) {
@@ -110,7 +113,9 @@ export function BackgroundMusic() {
         // NotAllowedError: autoplay blocked — wait for the next real gesture.
         // AbortError: interrupted by pause() — harmless.
         // Anything else (unsupported/missing file): stop trying for good.
-        if (name !== "NotAllowedError" && name !== "AbortError") {
+        if (name === "NotAllowedError") {
+          addUnlockRef.current();
+        } else if (name !== "AbortError") {
           gaveUpRef.current = true;
           removeUnlockRef.current();
         }
@@ -139,11 +144,31 @@ export function BackgroundMusic() {
     // the track. Restart from the top unless the user has muted.
     const onEnded = () => {
       audio.currentTime = 0;
-      if (!readMuted()) void audio.play().catch(() => {});
+      attemptPlay(false);
     };
     audio.addEventListener("play", onPlay);
     audio.addEventListener("pause", onPause);
     audio.addEventListener("ended", onEnded);
+
+    // Stop when the page goes to the background (tab switch, minimise, phone
+    // home button / app switch, tab or browser closing) and resume on return.
+    // This pause is not a mute: the saved preference is left untouched.
+    const pauseForBackground = () => {
+      audio.pause();
+      void ctxRef.current?.suspend().catch(() => {});
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        pauseForBackground();
+      } else {
+        if (ctxRef.current && ctxRef.current.state !== "running") {
+          void ctxRef.current.resume().catch(() => {});
+        }
+        attemptPlay(false);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("pagehide", pauseForBackground);
 
     // One play attempt per genuine interaction until playback succeeds.
     const onInteract = (e: Event) => {
@@ -152,10 +177,15 @@ export function BackgroundMusic() {
       if (e.target instanceof Node && buttonRef.current?.contains(e.target)) return;
       attemptPlay(true);
     };
-    UNLOCK_EVENTS.forEach((type) =>
-      window.addEventListener(type, onInteract, { capture: true, passive: true })
-    );
-    let unlockAttached = true;
+    let unlockAttached = false;
+    addUnlockRef.current = () => {
+      if (unlockAttached) return;
+      unlockAttached = true;
+      UNLOCK_EVENTS.forEach((type) =>
+        window.addEventListener(type, onInteract, { capture: true, passive: true })
+      );
+    };
+    addUnlockRef.current();
     removeUnlockRef.current = () => {
       if (!unlockAttached) return;
       unlockAttached = false;
@@ -173,6 +203,8 @@ export function BackgroundMusic() {
       audio.removeEventListener("play", onPlay);
       audio.removeEventListener("pause", onPause);
       audio.removeEventListener("ended", onEnded);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("pagehide", pauseForBackground);
       audio.pause();
       audio.removeAttribute("src");
       audio.load();
