@@ -74,7 +74,6 @@ export const Footer: React.FC = () => {
           rel="noopener noreferrer"
           className="hover:text-[#E3D28A]/70 transition-colors"
         >
-          Trophy icons created by kliwir art - Flaticon
         </a>
       </p>
     </footer>
