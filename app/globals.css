@@ -106,6 +106,64 @@ body {
   height: 100%;
 }
 
+/* ========================================================
+   AWARD STAMP MOTION (components/ui/AwardWinners.tsx)
+   ======================================================== */
+
+/* Back stamps — paper caught by an uneven breeze from the left, pinned at
+   the top edge: it tilts away (rotate), its lower half lifts toward the
+   viewer (rotateX), turns slightly edge-on (rotateY) and shears a touch as
+   if bending (skewX). Irregular gusts: two pushes, a settle, a recoil. */
+@keyframes paper-sway-soft {
+  0%, 100% { transform: rotate(0deg) rotateX(0deg) rotateY(0deg) skewX(0deg); }
+  22%      { transform: rotate(1deg) rotateX(4deg) rotateY(-3deg) skewX(-0.5deg); }
+  40%      { transform: rotate(0.3deg) rotateX(1.5deg) rotateY(-1deg) skewX(-0.2deg); }
+  58%      { transform: rotate(1.4deg) rotateX(6deg) rotateY(-4deg) skewX(-0.7deg); }
+  78%      { transform: rotate(-0.5deg) rotateX(-1.5deg) rotateY(2deg) skewX(0.3deg); }
+}
+
+.paper-sway-soft {
+  animation-name: paper-sway-soft;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+
+/* Front stamp — a flag in a steady breeze. Each vertical slice of the stamp
+   runs one sine cycle: it lifts by --a * sin(t) and shears by --s * cos(t)
+   (the wave's slope), so neighbouring slices stay joined. The slices are
+   phase-shifted in JS, which makes the ripple travel across the stamp. */
+@keyframes flag-wave {
+  0%      { transform: translateY(calc(var(--a) * 0)) skewY(calc(var(--s) * 1)); }
+  8.333%  { transform: translateY(calc(var(--a) * 0.5)) skewY(calc(var(--s) * 0.866)); }
+  16.667% { transform: translateY(calc(var(--a) * 0.866)) skewY(calc(var(--s) * 0.5)); }
+  25%     { transform: translateY(calc(var(--a) * 1)) skewY(calc(var(--s) * 0)); }
+  33.333% { transform: translateY(calc(var(--a) * 0.866)) skewY(calc(var(--s) * -0.5)); }
+  41.667% { transform: translateY(calc(var(--a) * 0.5)) skewY(calc(var(--s) * -0.866)); }
+  50%     { transform: translateY(calc(var(--a) * 0)) skewY(calc(var(--s) * -1)); }
+  58.333% { transform: translateY(calc(var(--a) * -0.5)) skewY(calc(var(--s) * -0.866)); }
+  66.667% { transform: translateY(calc(var(--a) * -0.866)) skewY(calc(var(--s) * -0.5)); }
+  75%     { transform: translateY(calc(var(--a) * -1)) skewY(calc(var(--s) * 0)); }
+  83.333% { transform: translateY(calc(var(--a) * -0.866)) skewY(calc(var(--s) * 0.5)); }
+  91.667% { transform: translateY(calc(var(--a) * -0.5)) skewY(calc(var(--s) * 0.866)); }
+  100%    { transform: translateY(calc(var(--a) * 0)) skewY(calc(var(--s) * 1)); }
+}
+
+.flag-wave {
+  animation-name: flag-wave;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .paper-sway-soft,
+  .flag-wave {
+    animation: none !important;
+    will-change: auto;
+  }
+}
+
 /* Reduced-motion: suppress CSS transitions and pulse animations for users
    who have requested reduced motion at the OS level. Framer Motion and the
    canvas-based effects (RippleDistortion, EmberParticles) handle their own
