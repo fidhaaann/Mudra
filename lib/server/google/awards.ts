@@ -1,18 +1,13 @@
-import { getSheetsClient } from './competition';
+import { getSheetsClient } from './client';
 import { getGoogleEnvVars } from '../security/env';
+import { cachedLoad, describeError } from '../cache';
 import { AwardWinners } from '@/types/awards';
 
-// ─── in-memory cache ──────────────────────────────────────────────────────────
-// Same 30 s TTL as the other competition sheet readers.
+// ─── caching ──────────────────────────────────────────────────────────────────
+// Same freshness as the other competition readers; see ../cache for the
+// coalescing and stale-if-error behaviour.
 
-const CACHE_TTL_MS = 30_000; // 30 s
-
-interface CacheEntry {
-  data: AwardWinners;
-  expiresAt: number;
-}
-
-let awardsCache: CacheEntry | null = null;
+const AWARDS_CACHE = { ttlMs: 30_000, staleMs: 20 * 60_000 };
 
 // Fixed layout: headers in row 1, manually entered winner names in row 2.
 const AWARDS_RANGE = 'AWARDS!A1:B2';
@@ -37,10 +32,11 @@ function parseName(value: unknown): string | null {
  * KALATHILAKAM / KALAPRATHIBHA headers in A1:B1. Blank cells resolve to null;
  * a missing or malformed header row yields both names as null.
  */
-export async function fetchAwards(): Promise<AwardWinners> {
-  const now = Date.now();
-  if (awardsCache && awardsCache.expiresAt > now) return awardsCache.data;
+export function fetchAwards(): Promise<AwardWinners> {
+  return cachedLoad('awards', AWARDS_CACHE, loadAwards);
+}
 
+async function loadAwards(): Promise<AwardWinners> {
   const { competitionSpreadsheetId } = getGoogleEnvVars();
   const sheets = getSheetsClient();
 
@@ -52,7 +48,8 @@ export async function fetchAwards(): Promise<AwardWinners> {
     });
     rows = Array.isArray(response.data.values) ? (response.data.values as unknown[][]) : [];
   } catch (error) {
-    console.error('Error fetching awards from Google Sheets:', error);
+    // Never log the raw error: Google API errors carry the auth header.
+    console.error('Error fetching awards from Google Sheets:', describeError(error));
     // Do not expose internal error details to the caller
     throw new Error('Failed to retrieve award data.');
   }
@@ -75,6 +72,5 @@ export async function fetchAwards(): Promise<AwardWinners> {
     };
   }
 
-  awardsCache = { data, expiresAt: now + CACHE_TTL_MS };
   return data;
 }

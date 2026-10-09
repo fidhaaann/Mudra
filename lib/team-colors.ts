@@ -3,6 +3,7 @@ export const TEAM_COLORS = {
   agni: "#FCA5A5",
   utsav: "#FDE68A",
   raaga: "#86EFAC",
+  mba: "#EE8814", // --mudra-highlight
 } as const;
 
 export const TEAM_PASTEL_COLORS = TEAM_COLORS;

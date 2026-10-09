@@ -1,5 +1,5 @@
 import { Event, PointsCategory } from "@/types/event";
-import { Team, TeamStanding, TeamId } from "@/types/team";
+import { TEAM_IDS, Team, TeamStanding, TeamId } from "@/types/team";
 import { EventResult } from "@/types/result";
 import { getPointsForRank, POINT_RULES } from "@/data/pointRules";
 import { TEAMS } from "@/data/teams";
@@ -44,12 +44,12 @@ export function calculateTeamStandings(
   results: Record<string, EventResult> = RECORDED_RESULTS,
   events: Record<string, Pick<Event, "id" | "pointsCategory">> = {}
 ): TeamStanding[] {
-  const standingsMap: Record<TeamId, { totalPoints: number; firstCount: number; secondCount: number; thirdCount: number }> = {
-    raaga:  { totalPoints: 0, firstCount: 0, secondCount: 0, thirdCount: 0 },
-    agni:   { totalPoints: 0, firstCount: 0, secondCount: 0, thirdCount: 0 },
-    tarang: { totalPoints: 0, firstCount: 0, secondCount: 0, thirdCount: 0 },
-    utsav:  { totalPoints: 0, firstCount: 0, secondCount: 0, thirdCount: 0 },
-  };
+  type Stats = { totalPoints: number; firstCount: number; secondCount: number; thirdCount: number };
+  // One zeroed entry per canonical team, so every team (including any with no
+  // results yet) is always present.
+  const standingsMap = Object.fromEntries(
+    TEAM_IDS.map((id) => [id, { totalPoints: 0, firstCount: 0, secondCount: 0, thirdCount: 0 }])
+  ) as Record<TeamId, Stats>;
 
   Object.values(results).forEach((result) => {
     // Look up the event's official pointsCategory; fall back gracefully if missing

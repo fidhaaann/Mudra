@@ -1,19 +1,6 @@
-import { google } from 'googleapis';
 import { getGoogleEnvVars } from '../security/env';
-
-// ─── auth ─────────────────────────────────────────────────────────────────────
-
-function getSheetsClient() {
-  const { email, privateKey } = getGoogleEnvVars();
-  const auth = new google.auth.GoogleAuth({
-    credentials: {
-      client_email: email,
-      private_key: privateKey,
-    },
-    scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-  });
-  return google.sheets({ version: 'v4', auth });
-}
+import { cachedLoad, describeError } from '../cache';
+import { getSheetsClient } from './client';
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
@@ -25,18 +12,12 @@ export interface StudentRecord {
   team: string;
 }
 
-// ─── in-memory cache ──────────────────────────────────────────────────────────
-// Student data changes only between events; 30 s is sufficient to absorb
-// burst traffic without re-authenticating on every lookup request.
+// ─── caching ──────────────────────────────────────────────────────────────────
+// Student allocations change rarely, so the list is kept for 5 minutes and
+// can be served for up to 6 hours if Google Sheets is unavailable. Lookups
+// never trigger a Sheets request of their own (see ../cache).
 
-const CACHE_TTL_MS = 30_000; // 30 s
-
-interface CacheEntry {
-  data: StudentRecord[];
-  expiresAt: number;
-}
-
-let studentsCache: CacheEntry | null = null;
+const STUDENTS_CACHE = { ttlMs: 5 * 60_000, staleMs: 6 * 60 * 60_000 };
 
 // ─── fetch ────────────────────────────────────────────────────────────────────
 
@@ -47,14 +28,14 @@ let studentsCache: CacheEntry | null = null;
  *
  * Assumes headers: STUDENT_ID | NAME | SEMESTER | BRANCH | TEAM
  */
-export async function fetchAllStudents(): Promise<StudentRecord[]> {
-  const now = Date.now();
-  if (studentsCache && studentsCache.expiresAt > now) {
-    return studentsCache.data;
-  }
+export function fetchAllStudents(): Promise<StudentRecord[]> {
+  return cachedLoad('students', STUDENTS_CACHE, loadAllStudents);
+}
 
+async function loadAllStudents(): Promise<StudentRecord[]> {
   const { spreadsheetId } = getGoogleEnvVars();
-  const sheets = getSheetsClient();
+  // Student data is only ever read: use the read-only scope.
+  const sheets = getSheetsClient('readonly');
 
   try {
     const response = await sheets.spreadsheets.values.get({
@@ -64,7 +45,6 @@ export async function fetchAllStudents(): Promise<StudentRecord[]> {
 
     const rows = response.data.values;
     if (!rows || rows.length === 0) {
-      studentsCache = { data: [], expiresAt: now + CACHE_TTL_MS };
       return [];
     }
 
@@ -78,10 +58,10 @@ export async function fetchAllStudents(): Promise<StudentRecord[]> {
       team:      String(row[4] ?? '').trim(),
     }));
 
-    studentsCache = { data: records, expiresAt: now + CACHE_TTL_MS };
     return records;
   } catch (error) {
-    console.error('Error fetching student records from Google Sheets:', error);
+    // Never log the raw error: it carries the auth header (and request URL).
+    console.error('Error fetching student records from Google Sheets:', describeError(error));
     // Do not expose internal error details to the caller
     throw new Error('Failed to retrieve student records from database.');
   }

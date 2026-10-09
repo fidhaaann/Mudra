@@ -23,8 +23,11 @@ export interface TeamWordmarks {
  * Lettered team-name artwork (English + Malayalam).
  * The WebPs are tight, transparent crops of the black-background JPG masters
  * in the same folders, so they sit on any MUDRA surface without a black box.
+ *
+ * Teams without artwork (currently MBA) are absent; TeamWordmark falls back
+ * to the plain team name for them.
  */
-export const TEAM_WORDMARKS: Record<TeamId, TeamWordmarks> = {
+export const TEAM_WORDMARKS: Partial<Record<TeamId, TeamWordmarks>> = {
   raaga: {
     englishName: "RAAGA",
     malayalamName: "രാഗ",

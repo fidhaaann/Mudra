@@ -1,6 +1,7 @@
 import { fetchAllStudents, StudentRecord } from '../google/sheets';
 import { TeamLookupRequest } from '../validation/lookup';
 import { matchByName, normalizeName, MIN_FUZZY_QUERY_LENGTH } from './name-match';
+import { describeError } from '../cache';
 
 export interface TeamLookupResult {
   name: string;
@@ -89,9 +90,10 @@ export async function findStudentTeam(request: TeamLookupRequest): Promise<TeamL
 
     return { type: 'not_found', message: 'No matching student found.' };
   } catch (error) {
-    // Log internal error but return a generic message
-    console.error('Service error in findStudentTeam:', error);
-    return { type: 'error', message: 'Internal server error while searching for team.' };
+    // Log a safe summary (never the raw error or the query) and return a
+    // generic message.
+    console.error('Service error in findStudentTeam:', describeError(error));
+    return { type: 'error', message: 'Team lookup is temporarily unavailable. Please try again shortly.' };
   }
 }
 

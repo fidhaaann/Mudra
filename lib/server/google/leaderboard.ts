@@ -1,6 +1,9 @@
+import { after } from 'next/server';
 import { fetchEvents, fetchResults, getSheetsClient } from './competition';
 import { getGoogleEnvVars } from '../security/env';
+import { cachedLoad, describeError } from '../cache';
 import { TeamId } from '@/types/team';
+import { CALCULATED_SHEET_LABELS, TEAMS, parseTeamId } from '@/data/teams';
 import { Event } from '@/types/event';
 import { EventResult } from '@/types/result';
 import {
@@ -13,17 +16,17 @@ import {
   TeamLeaderboardEntry,
 } from '@/types/leaderboard';
 
-const SHEET_CACHE_TTL_MS = 30_000;
-export const CALCULATED_WRITE_RANGE = 'CALCULATED!A2:E5';
-const CALCULATED_SYNC_TTL_MS = 30_000;
+/** MANUAL / CALCULATED tab reads: same freshness as RESULTS (see ../cache). */
+const SHEET_CACHE = { ttlMs: 30_000, staleMs: 20 * 60_000 };
+/** One row per canonical team, below the header (A2:E6 for five teams). */
+export const CALCULATED_WRITE_RANGE = `CALCULATED!A2:E${TEAMS.length + 1}`;
+/**
+ * After a successful sync, identical rows are not re-checked against the
+ * sheet for this long (a changed result triggers a sync immediately). The
+ * periodic re-check repairs manual edits to the CALCULATED tab.
+ */
+const CALCULATED_RECHECK_MS = 5 * 60_000;
 
-interface SheetCacheEntry<T> {
-  data: T;
-  expiresAt: number;
-}
-
-let calculatedCache: SheetCacheEntry<CalculatedLeaderboardRow[]> | null = null;
-let manualCache: SheetCacheEntry<ManualLeaderboardRow[]> | null = null;
 let lastCalculatedSyncFingerprint: string | null = null;
 let lastCalculatedSyncAt = 0;
 let calculatedSyncInFlight: Promise<void> | null = null;
@@ -43,11 +46,6 @@ function parseNumber(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function parseTeam(value: unknown): LeaderboardTeamId | null {
-  const team = String(value ?? '').trim().toLowerCase() as LeaderboardTeamId;
-  return ['raaga', 'agni', 'tarang', 'utsav'].includes(team) ? team : null;
-}
-
 async function fetchLeaderboardSheetRows(range: 'CALCULATED!A:E' | 'MANUAL!A:D'): Promise<unknown[][]> {
   const { competitionSpreadsheetId } = getGoogleEnvVars();
   const sheets = getSheetsClient();
@@ -59,7 +57,8 @@ async function fetchLeaderboardSheetRows(range: 'CALCULATED!A:E' | 'MANUAL!A:D')
     });
     return (response.data.values ?? []) as unknown[][];
   } catch (error) {
-    console.error('Error fetching leaderboard sheets from Google Sheets:', error);
+    // Never log the raw error: Google API errors carry the auth header.
+    console.error('Error fetching leaderboard sheets from Google Sheets:', { range, ...describeError(error) });
     throw new Error('Failed to retrieve leaderboard sheet data.');
   }
 }
@@ -74,24 +73,24 @@ function getColumnIndexes(headers: unknown[], required: string[]) {
  * This is intentionally separate from buildLeaderboard so official scoring
  * remains the current source of truth.
  */
-export async function fetchCalculatedLeaderboard(): Promise<CalculatedLeaderboardRow[]> {
-  const now = Date.now();
-  if (calculatedCache && calculatedCache.expiresAt > now) return calculatedCache.data;
+export function fetchCalculatedLeaderboard(): Promise<CalculatedLeaderboardRow[]> {
+  return cachedLoad('calculated', SHEET_CACHE, loadCalculatedLeaderboard);
+}
 
+async function loadCalculatedLeaderboard(): Promise<CalculatedLeaderboardRow[]> {
   const rows = await fetchLeaderboardSheetRows('CALCULATED!A:E');
   const [teamIdx, totalIdx, firstIdx, secondIdx, thirdIdx] = getColumnIndexes(
     rows[0] ?? [],
     ['team', 'total points', '1st', '2nd', '3rd']
   );
   if ([teamIdx, totalIdx, firstIdx, secondIdx, thirdIdx].some((index) => index < 0)) {
-    calculatedCache = { data: [], expiresAt: now + SHEET_CACHE_TTL_MS };
     return [];
   }
 
   const data: CalculatedLeaderboardRow[] = [];
   for (const row of rows.slice(1)) {
     if (!row?.length || row.every((cell) => !String(cell ?? '').trim())) continue;
-    const team = parseTeam(row[teamIdx]);
+    const team = parseTeamId(row[teamIdx]);
     const totalPoints = parseNumber(row[totalIdx]);
     const firstPlaceCount = parseNumber(row[firstIdx]);
     const secondPlaceCount = parseNumber(row[secondIdx]);
@@ -106,7 +105,6 @@ export async function fetchCalculatedLeaderboard(): Promise<CalculatedLeaderboar
     data.push({ team, totalPoints, firstPlaceCount, secondPlaceCount, thirdPlaceCount });
   }
 
-  calculatedCache = { data, expiresAt: now + SHEET_CACHE_TTL_MS };
   return data;
 }
 
@@ -114,10 +112,11 @@ export async function fetchCalculatedLeaderboard(): Promise<CalculatedLeaderboar
  * Reads the MANUAL tab for the next-stage override integration.
  * Manual values are read and validated but do not affect official totals yet.
  */
-export async function fetchManualLeaderboard(): Promise<ManualLeaderboardRow[]> {
-  const now = Date.now();
-  if (manualCache && manualCache.expiresAt > now) return manualCache.data;
+export function fetchManualLeaderboard(): Promise<ManualLeaderboardRow[]> {
+  return cachedLoad('manual', SHEET_CACHE, loadManualLeaderboard);
+}
 
+async function loadManualLeaderboard(): Promise<ManualLeaderboardRow[]> {
   const rows = await fetchLeaderboardSheetRows('MANUAL!A:D');
 
   const [teamIdx, totalIdx, noteIdx, updatedIdx] = getColumnIndexes(
@@ -125,14 +124,13 @@ export async function fetchManualLeaderboard(): Promise<ManualLeaderboardRow[]> 
     ['team', 'total points', 'note', 'last updated']
   );
   if ([teamIdx, totalIdx, noteIdx, updatedIdx].some((index) => index < 0)) {
-    manualCache = { data: [], expiresAt: now + SHEET_CACHE_TTL_MS };
     return [];
   }
 
   const data: ManualLeaderboardRow[] = [];
   for (const row of rows.slice(1)) {
     if (!row?.length || row.every((cell) => !String(cell ?? '').trim())) continue;
-    const team = parseTeam(row[teamIdx]);
+    const team = parseTeamId(row[teamIdx]);
     const totalPoints = parseNumber(row[totalIdx]);
     if (!team || totalPoints === null) continue;
     data.push({
@@ -143,7 +141,6 @@ export async function fetchManualLeaderboard(): Promise<ManualLeaderboardRow[]> 
     });
   }
 
-  manualCache = { data, expiresAt: now + SHEET_CACHE_TTL_MS };
   return data;
 }
 
@@ -163,7 +160,7 @@ export function calculateCalculatedLeaderboard(
   results: EventResult[]
 ): CalculatedLeaderboardRow[] {
   const totals = new Map<LeaderboardTeamId, CalculatedLeaderboardRow>(
-    ALL_TEAMS.map(({ id }) => [
+    TEAMS.map(({ id }) => [
       id,
       {
         team: id,
@@ -196,17 +193,17 @@ export function calculateCalculatedLeaderboard(
     }
   }
 
-  return ALL_TEAMS.map(({ id }) => totals.get(id)!);
+  return TEAMS.map(({ id }) => totals.get(id)!);
 }
 
 export function calculatedRowsToSheetValues(
   rows: CalculatedLeaderboardRow[]
 ): string[][] {
   const rowsByTeam = new Map(rows.map((row) => [row.team, row]));
-  return ALL_TEAMS.map(({ id }) => {
+  return TEAMS.map(({ id }) => {
     const row = rowsByTeam.get(id);
     return [
-      id === 'utsav' ? 'UTSUV' : id.toUpperCase(),
+      CALCULATED_SHEET_LABELS[id],
       String(row?.totalPoints ?? 0),
       String(row?.firstPlaceCount ?? 0),
       String(row?.secondPlaceCount ?? 0),
@@ -224,17 +221,47 @@ function sheetValuesMatch(existing: unknown[][], expected: string[][]): boolean 
   );
 }
 
+/**
+ * Rows in the write range whose TEAM cell holds a label other than the one
+ * this sync would write there. A blank cell is fine (the row is new, e.g. the
+ * first sync after a team is added); anything else means the sheet layout is
+ * not what the backend expects, so writing would overwrite unrelated data.
+ */
+function unexpectedTeamLabels(existing: unknown[][], expected: string[][]): string[] {
+  const problems: string[] = [];
+  expected.forEach((expectedRow, rowIndex) => {
+    const label = String(existing[rowIndex]?.[0] ?? '').trim();
+    if (label && label.toUpperCase() !== expectedRow[0]) {
+      problems.push(`row ${rowIndex + 2}: found "${label}", expected "${expectedRow[0]}"`);
+    }
+  });
+  return problems;
+}
+
 type SheetsValuesClient = ReturnType<typeof getSheetsClient>;
 
 /**
- * Synchronizes only the fixed CALCULATED data range. The read-before-write
- * comparison prevents duplicate rows and unnecessary writes.
+ * Synchronizes only the fixed CALCULATED data range (one row per canonical
+ * team, in TEAMS order). It never appends, so repeated syncs cannot create
+ * duplicate rows; the read-before-write comparison skips unchanged data; and
+ * the write is refused if any existing TEAM label in the range belongs to a
+ * different team than the row being written.
  */
 export async function synchronizeCalculatedRows(
   rows: CalculatedLeaderboardRow[],
   sheets: SheetsValuesClient = getSheetsClient(),
   spreadsheetId = getGoogleEnvVars().competitionSpreadsheetId
 ): Promise<boolean> {
+  return (await syncCalculatedRows(rows, sheets, spreadsheetId)) === 'written';
+}
+
+type SyncOutcome = 'written' | 'unchanged' | 'refused' | 'failed';
+
+async function syncCalculatedRows(
+  rows: CalculatedLeaderboardRow[],
+  sheets: SheetsValuesClient,
+  spreadsheetId: string
+): Promise<SyncOutcome> {
   const expected = calculatedRowsToSheetValues(rows);
 
   try {
@@ -243,7 +270,18 @@ export async function synchronizeCalculatedRows(
       range: CALCULATED_WRITE_RANGE,
     });
     const existing = (current.data.values ?? []) as unknown[][];
-    if (sheetValuesMatch(existing, expected)) return false;
+    if (sheetValuesMatch(existing, expected)) return 'unchanged';
+
+    const problems = unexpectedTeamLabels(existing, expected);
+    if (problems.length > 0) {
+      console.error('Calculated leaderboard synchronization skipped:', {
+        operation: 'calculated-range-update',
+        range: CALCULATED_WRITE_RANGE,
+        reason: 'unexpected-team-labels',
+        problems,
+      });
+      return 'refused';
+    }
 
     await sheets.spreadsheets.values.update({
       spreadsheetId,
@@ -251,37 +289,66 @@ export async function synchronizeCalculatedRows(
       valueInputOption: 'RAW',
       requestBody: { values: expected },
     });
-    return true;
+    return 'written';
   } catch (error) {
     console.error('Calculated leaderboard synchronization failed:', {
       operation: 'calculated-range-update',
       range: CALCULATED_WRITE_RANGE,
       reason: error instanceof Error ? error.message : 'unknown-error',
     });
-    return false;
+    return 'failed';
   }
 }
 
+/**
+ * One sync at a time per instance; identical rows are skipped until the
+ * re-check interval passes. Only a sync that actually succeeded (written or
+ * already identical) is recorded, so a failed write is retried on the next
+ * leaderboard request instead of being treated as done.
+ */
 async function synchronizeCalculatedRowsOnce(rows: CalculatedLeaderboardRow[]): Promise<void> {
   const fingerprint = JSON.stringify(rows);
   const now = Date.now();
   if (
     fingerprint === lastCalculatedSyncFingerprint &&
-    now - lastCalculatedSyncAt < CALCULATED_SYNC_TTL_MS
+    now - lastCalculatedSyncAt < CALCULATED_RECHECK_MS
   ) {
     return;
   }
   if (calculatedSyncInFlight) return calculatedSyncInFlight;
 
-  calculatedSyncInFlight = synchronizeCalculatedRows(rows)
-    .then(() => {
-      lastCalculatedSyncFingerprint = fingerprint;
-      lastCalculatedSyncAt = Date.now();
+  calculatedSyncInFlight = syncCalculatedRows(
+    rows,
+    getSheetsClient(),
+    getGoogleEnvVars().competitionSpreadsheetId
+  )
+    .then((outcome) => {
+      if (outcome === 'written' || outcome === 'unchanged') {
+        lastCalculatedSyncFingerprint = fingerprint;
+        lastCalculatedSyncAt = Date.now();
+      }
+    })
+    .catch((error) => {
+      console.error('Calculated leaderboard synchronization failed:', describeError(error));
     })
     .finally(() => {
       calculatedSyncInFlight = null;
     });
   return calculatedSyncInFlight;
+}
+
+/**
+ * Run the CALCULATED sync after the response is sent, so a slow or failing
+ * sheet write never delays or breaks the public leaderboard. Outside a
+ * request scope (scripts, tests) `after` is unavailable; the sync then runs
+ * in the background with its errors contained.
+ */
+function scheduleCalculatedSync(rows: CalculatedLeaderboardRow[]): void {
+  try {
+    after(() => synchronizeCalculatedRowsOnce(rows));
+  } catch {
+    void synchronizeCalculatedRowsOnce(rows);
+  }
 }
 
 /**
@@ -324,23 +391,17 @@ export function calculateEffectiveLeaderboard(
   return effective;
 }
 
-// Official scoring table — source of truth, never override with sheet values
-const ALL_TEAMS: { id: TeamId; name: string }[] = [
-  { id: 'raaga',  name: 'RAAGA'  },
-  { id: 'agni',   name: 'AGNI'   },
-  { id: 'tarang', name: 'TARANG' },
-  { id: 'utsav',  name: 'UTSAV'  },
-];
-
 export async function buildLeaderboard(): Promise<LeaderboardResponse> {
-  // Fetch both in parallel
+  // All three in parallel. fetchResults() also needs the events list; the
+  // cache coalesces that into the same single EVENTS read, so this costs no
+  // extra Sheets call and never waits on two refreshes back to back.
   const [events, results, manualRows] = await Promise.all([
     fetchEvents(),
     fetchResults(),
     fetchManualLeaderboard(),
   ]);
   const calculatedRows = calculateCalculatedLeaderboard(events, results);
-  await synchronizeCalculatedRowsOnce(calculatedRows);
+  scheduleCalculatedSync(calculatedRows);
   const effectiveRows = calculateEffectiveLeaderboard(calculatedRows, manualRows);
   const effectiveByTeam = new Map(effectiveRows.map((row) => [row.team, row]));
 
@@ -359,12 +420,10 @@ export async function buildLeaderboard(): Promise<LeaderboardResponse> {
     offStagePoints:   number;
   }
 
-  const acc: Record<TeamId, TeamAccumulator> = {
-    raaga:  zero(effectiveByTeam.get('raaga')),
-    agni:   zero(effectiveByTeam.get('agni')),
-    tarang: zero(effectiveByTeam.get('tarang')),
-    utsav:  zero(effectiveByTeam.get('utsav')),
-  };
+  // One accumulator per canonical team, so every team is always returned.
+  const acc = Object.fromEntries(
+    TEAMS.map(({ id }) => [id, zero(effectiveByTeam.get(id))])
+  ) as Record<TeamId, TeamAccumulator>;
 
   let completedEventCount = 0;
   const countedEventIds = new Set<string>();
@@ -404,10 +463,10 @@ export async function buildLeaderboard(): Promise<LeaderboardResponse> {
   }
 
   // Find the highest total to compute gap
-  const maxPoints = Math.max(...ALL_TEAMS.map(t => acc[t.id].totalPoints));
+  const maxPoints = Math.max(...TEAMS.map(t => acc[t.id].totalPoints));
 
-  // Build entries for all four teams
-  const entries: TeamLeaderboardEntry[] = ALL_TEAMS.map(team => {
+  // Build entries for every team, including teams with zero points
+  const entries: TeamLeaderboardEntry[] = TEAMS.map(team => {
     const a = acc[team.id];
     return {
       teamId:           team.id,

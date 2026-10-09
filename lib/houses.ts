@@ -18,8 +18,12 @@ export interface HouseConfig {
 /**
  * Single source of truth for house → ID-card artwork. Each image is mapped
  * explicitly by house; nothing is inferred from file order.
+ *
+ * Not every competition team has a house card: MBA competes but has no
+ * student records, house code or card artwork, so it is deliberately absent
+ * and resolves to the neutral "no house" state.
  */
-export const HOUSE_CONFIG: Record<TeamId, HouseConfig> = {
+export const HOUSE_CONFIG: Partial<Record<TeamId, HouseConfig>> = {
   agni: {
     id: "agni",
     name: "AGNI",
@@ -58,6 +62,6 @@ export function resolveHouse(team: string | null | undefined): HouseConfig | nul
   if (!team) return null;
   const key = team.trim().toLowerCase();
   return Object.prototype.hasOwnProperty.call(HOUSE_CONFIG, key)
-    ? HOUSE_CONFIG[key as TeamId]
+    ? HOUSE_CONFIG[key as TeamId] ?? null
     : null;
 }
