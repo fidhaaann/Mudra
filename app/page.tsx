@@ -208,7 +208,7 @@ export default function HomePage() {
       </section>
 
       {/* 2. POINTS TABLE / TEAM STANDINGS SECTION */}
-      <section id="team-standings" ref={nextRef} className="relative z-1 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20 w-full min-w-0">
+      <section id="team-standings" ref={nextRef} className="relative z-1 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-6 w-full min-w-0">
         <div ref={nextContentRef} className="relative z-1 space-y-12">
         <div className="text-center space-y-2">
           <div className="font-display text-xs tracking-widest text-[#E02E0B] uppercase font-bold">

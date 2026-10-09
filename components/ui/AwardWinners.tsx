@@ -432,7 +432,7 @@ export function AwardWinners({ className }: { className?: string }) {
   }, []);
 
   return (
-    <section aria-labelledby="award-winners-heading" className={cn("space-y-2 min-w-0", className)}>
+    <section aria-labelledby="award-winners-heading" className={cn("space-y-6 sm:space-y-8 min-w-0", className)}>
       <h2
         id="award-winners-heading"
         className="font-display text-xs tracking-widest text-[#E3D28A]/60 uppercase"
