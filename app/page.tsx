@@ -197,9 +197,10 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Cultural Tagline — Increased size */}
-          <div className="mt-[clamp(0.6rem,2.2svh,1.5rem)] font-body text-[clamp(0.95rem,2.2svh,1.35rem)] text-[#E3D28A]/90 max-w-[clamp(300px,85vw,42rem)] leading-relaxed tracking-wide">
-            <p>A thousand gestures, a thousand stories, one celebration of art.</p>
+          {/* Cultural Tagline — light Malayalam face. No letter-spacing:
+              tracking pulls apart Malayalam conjuncts and vowel signs. */}
+          <div className="mt-[clamp(0.6rem,2.2svh,1.5rem)] font-malayalam font-normal text-[clamp(1.1rem,2.7svh,1.65rem)] text-[#E3D28A]/90 max-w-[clamp(300px,85vw,42rem)] leading-relaxed">
+            <p lang="ml">കല സംസ്കാരിക കലോത്സവം.</p>
           </div>
         </FadeContent>
 

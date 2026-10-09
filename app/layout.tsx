@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
-import { Cinzel, Outfit, Space_Mono } from "next/font/google";
+import { Cinzel, Noto_Sans_Malayalam, Outfit, Space_Mono } from "next/font/google";
 import "./globals.css";
 import { Navbar } from "@/components/navigation/Navbar";
 import { Footer } from "@/components/navigation/Footer";
@@ -29,6 +29,16 @@ const outfit = Outfit({
   display: "swap",
 });
 
+// Regular (400) Malayalam face for the home-page tagline. Not preloaded: it
+// is only used on the home page, so other pages never download it.
+const notoSansMalayalam = Noto_Sans_Malayalam({
+  variable: "--font-noto-sans-malayalam",
+  subsets: ["malayalam"],
+  weight: ["400"],
+  display: "swap",
+  preload: false,
+});
+
 const spaceMono = Space_Mono({
   variable: "--font-space-mono",
   subsets: ["latin"],
@@ -52,7 +62,7 @@ export default function RootLayout({
     <html
       lang="en"
       data-scroll-behavior="smooth"
-      className={`${wardrum.variable} ${cinzel.variable} ${outfit.variable} ${spaceMono.variable} h-full antialiased`}
+      className={`${wardrum.variable} ${cinzel.variable} ${outfit.variable} ${spaceMono.variable} ${notoSansMalayalam.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-[#110B0B] text-[#E3D28A]">
         <LoadingScreen />

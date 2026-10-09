@@ -26,6 +26,7 @@
   --font-display: var(--font-display-serif);
   --font-body: var(--font-body-sans);
   --font-mono: var(--font-tech-mono);
+  --font-malayalam: var(--font-noto-sans-malayalam), "Noto Sans Malayalam", sans-serif;
 }
 
 /* Base Styles */
