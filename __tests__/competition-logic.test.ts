@@ -21,14 +21,19 @@
  *  - Duplicate placements for same event (last-one-wins de-dup handled by Map)
  *  - schedule projectEvent() parsing
  *  - calculateTeamStandings() ranking divergence fix
+ *  - MBA as the fifth team: parsing, scoring, MANUAL overrides, ties,
+ *    five-row CALCULATED sync, RESULTS row → team mapping, house lookup
  */
 
 import assert from "node:assert/strict";
 import { POINT_RULES, getPointsForRank } from "../data/pointRules";
 import { officialPoints, calculateTeamStandings } from "../lib/scoring";
-import { buildPublishedEventResult } from "../lib/server/google/competition";
+import { buildPublishedEventResult, parseResultRows } from "../lib/server/google/competition";
 import { EVENTS } from "../data/events";
-import { TEAMS } from "../data/teams";
+import { TEAMS, parseTeamId } from "../data/teams";
+import { TEAM_IDS } from "../types/team";
+import type { TeamId } from "../types/team";
+import { resolveHouse } from "../lib/houses";
 import {
   calculateCalculatedLeaderboard,
   calculateEffectiveLeaderboard,
@@ -46,16 +51,33 @@ let passed = 0;
 let failed = 0;
 const failures: string[] = [];
 
-function test(name: string, fn: () => void) {
+// Async tests are collected and awaited before the summary, so a failing
+// assertion inside an async test is counted instead of escaping as an
+// unhandled rejection.
+const pending: Promise<void>[] = [];
+
+function pass(name: string) {
+  console.log(`  ✓  ${name}`);
+  passed++;
+}
+
+function fail(name: string, err: unknown) {
+  const msg = err instanceof Error ? err.message : String(err);
+  console.error(`  ✗  ${name}\n     ${msg}`);
+  failed++;
+  failures.push(`${name}: ${msg}`);
+}
+
+function test(name: string, fn: () => void | Promise<void>) {
   try {
-    fn();
-    console.log(`  ✓  ${name}`);
-    passed++;
+    const outcome = fn();
+    if (outcome instanceof Promise) {
+      pending.push(outcome.then(() => pass(name), (err) => fail(name, err)));
+      return;
+    }
+    pass(name);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error(`  ✗  ${name}\n     ${msg}`);
-    failed++;
-    failures.push(`${name}: ${msg}`);
+    fail(name, err);
   }
 }
 
@@ -65,7 +87,6 @@ function section(title: string) {
 
 // ─── inline types (mirrors production types, no import needed) ────────────────
 
-type TeamId = "raaga" | "agni" | "tarang" | "utsav";
 type PointsCategory = "group" | "duo" | "solo" | "offstage";
 
 interface PodiumPlacement {
@@ -98,7 +119,7 @@ function scoreLeaderboard(
     solo:     { 1: 10, 2:  7, 3:  5 },
     offstage: { 1:  8, 2:  5, 3:  3 },
   };
-  const totals: Record<TeamId, number> = { raaga: 0, agni: 0, tarang: 0, utsav: 0 };
+  const totals = Object.fromEntries(TEAM_IDS.map((id) => [id, 0])) as Record<TeamId, number>;
   const eventMap = new Map(events.map(e => [e.id.toLowerCase(), e]));
 
   for (const result of results) {
@@ -290,11 +311,11 @@ test("all events have valid pointsCategory", () => {
   assert.equal(bad.length, 0, `Invalid pointsCategory: ${bad.map(e => e.id).join(", ")}`);
 });
 
-test("4 teams defined", () => assert.equal(TEAMS.length, 4));
+test("5 teams defined", () => assert.equal(TEAMS.length, 5));
 
-test("team ids are raaga/agni/tarang/utsav", () => {
-  const ids = new Set(TEAMS.map(t => t.id));
-  assert.ok(ids.has("raaga") && ids.has("agni") && ids.has("tarang") && ids.has("utsav"));
+test("team ids are raaga/agni/tarang/utsav/mba in canonical order", () => {
+  assert.deepEqual(TEAMS.map(t => t.id), ["raaga", "agni", "tarang", "utsav", "mba"]);
+  assert.deepEqual(TEAMS.map(t => t.name), ["RAAGA", "AGNI", "TARANG", "UTSAV", "MBA"]);
 });
 
 // ─── SECTION 6: Leaderboard scoring — single events ──────────────────────────
@@ -545,50 +566,55 @@ test("pointsAwarded=999 in sheet is ignored — official score used", () => {
 
 section("11. Standard competition ranking — no secondary tie-breaker");
 
-test("50/50/40/30 → ranks 1/1/3/4", () => {
-  const scores: Record<TeamId, number> = { raaga: 50, agni: 50, tarang: 40, utsav: 30 };
+test("50/50/40/30/20 → ranks 1/1/3/4/5", () => {
+  const scores: Record<TeamId, number> = { raaga: 50, agni: 50, tarang: 40, utsav: 30, mba: 20 };
   const ranks = rank(scores);
   assert.equal(ranks.raaga,  1, `raaga should be rank 1, got ${ranks.raaga}`);
   assert.equal(ranks.agni,   1, `agni should be rank 1, got ${ranks.agni}`);
   assert.equal(ranks.tarang, 3, `tarang should be rank 3, got ${ranks.tarang}`);
   assert.equal(ranks.utsav,  4, `utsav should be rank 4, got ${ranks.utsav}`);
+  assert.equal(ranks.mba,    5, `mba should be rank 5, got ${ranks.mba}`);
 });
 
 test("all teams equal → all rank 1", () => {
-  const scores: Record<TeamId, number> = { raaga: 20, agni: 20, tarang: 20, utsav: 20 };
+  const scores: Record<TeamId, number> = { raaga: 20, agni: 20, tarang: 20, utsav: 20, mba: 20 };
   const ranks = rank(scores);
   assert.equal(ranks.raaga,  1);
   assert.equal(ranks.agni,   1);
   assert.equal(ranks.tarang, 1);
   assert.equal(ranks.utsav,  1);
+  assert.equal(ranks.mba,    1);
 });
 
-test("all different → ranks 1/2/3/4", () => {
-  const scores: Record<TeamId, number> = { raaga: 40, agni: 30, tarang: 20, utsav: 10 };
+test("all different → ranks 1/2/3/4/5", () => {
+  const scores: Record<TeamId, number> = { raaga: 40, agni: 30, tarang: 20, utsav: 10, mba: 5 };
   const ranks = rank(scores);
   assert.equal(ranks.raaga,  1);
   assert.equal(ranks.agni,   2);
   assert.equal(ranks.tarang, 3);
   assert.equal(ranks.utsav,  4);
+  assert.equal(ranks.mba,    5);
 });
 
-test("40/40/40/10 → ranks 1/1/1/4", () => {
-  const scores: Record<TeamId, number> = { raaga: 40, agni: 40, tarang: 40, utsav: 10 };
+test("40/40/40/10/10 → ranks 1/1/1/4/4 (MBA ties UTSAV)", () => {
+  const scores: Record<TeamId, number> = { raaga: 40, agni: 40, tarang: 40, utsav: 10, mba: 10 };
   const ranks = rank(scores);
   assert.equal(ranks.raaga,  1);
   assert.equal(ranks.agni,   1);
   assert.equal(ranks.tarang, 1);
   assert.equal(ranks.utsav,  4);
+  assert.equal(ranks.mba,    4);
 });
 
-test("all zero → ranks 1/1/1/1", () => {
-  const scores: Record<TeamId, number> = { raaga: 0, agni: 0, tarang: 0, utsav: 0 };
+test("all zero → ranks 1/1/1/1/1", () => {
+  const scores: Record<TeamId, number> = { raaga: 0, agni: 0, tarang: 0, utsav: 0, mba: 0 };
   const ranks = rank(scores);
   // All tied at 0 — all rank 1
   assert.equal(ranks.raaga,  1);
   assert.equal(ranks.agni,   1);
   assert.equal(ranks.tarang, 1);
   assert.equal(ranks.utsav,  1);
+  assert.equal(ranks.mba,    1);
 });
 
 // ─── SECTION 12: CALCULATED leaderboard rows ─────────────────────────────────
@@ -640,7 +666,7 @@ test("finished group, duo, solo, and off-stage events use official points", () =
   );
   assert.deepEqual(
     Object.fromEntries(rows.map((row) => [row.team, row.totalPoints])),
-    { raaga: 20, agni: 8, tarang: 5, utsav: 8 }
+    { raaga: 20, agni: 8, tarang: 5, utsav: 8, mba: 0 }
   );
 });
 
@@ -652,7 +678,7 @@ test("upcoming and live events contribute zero", () => {
     ],
     [calculatedResult("upcoming", "raaga", 1), calculatedResult("live", "agni", 1)]
   );
-  assert.deepEqual(rows.map((row) => row.totalPoints), [0, 0, 0, 0]);
+  assert.deepEqual(rows.map((row) => row.totalPoints), [0, 0, 0, 0, 0]);
 });
 
 test("multiple finished events accumulate points and placement counts", () => {
@@ -669,9 +695,9 @@ test("multiple finished events accumulate points and placement counts", () => {
   assert.equal(raaga.secondPlaceCount, 1);
 });
 
-test("all four teams are returned with zero rows when unscored", () => {
+test("all five teams (including MBA) are returned with zero rows when unscored", () => {
   const rows = calculateCalculatedLeaderboard([], []);
-  assert.deepEqual(rows.map((row) => row.team), ["raaga", "agni", "tarang", "utsav"]);
+  assert.deepEqual(rows.map((row) => row.team), ["raaga", "agni", "tarang", "utsav", "mba"]);
   assert.ok(rows.every((row) => row.totalPoints === 0));
 });
 
@@ -693,6 +719,7 @@ function calculatedRowsForManualTests(): CalculatedLeaderboardRow[] {
     { team: "agni", totalPoints: 80, firstPlaceCount: 1, secondPlaceCount: 2, thirdPlaceCount: 1 },
     { team: "tarang", totalPoints: 60, firstPlaceCount: 0, secondPlaceCount: 1, thirdPlaceCount: 2 },
     { team: "utsav", totalPoints: 0, firstPlaceCount: 0, secondPlaceCount: 0, thirdPlaceCount: 0 },
+    { team: "mba", totalPoints: 30, firstPlaceCount: 1, secondPlaceCount: 0, thirdPlaceCount: 2 },
   ];
 }
 
@@ -758,26 +785,33 @@ test("equal effective totals share rank without changing placement counts", () =
   assert.equal(agni.thirdPlaceCount, 1);
 });
 
-test("manual merge still returns all four teams", () => {
+test("manual merge still returns all five teams", () => {
   const rows = calculateEffectiveLeaderboard(
     calculatedRowsForManualTests(),
     [manualRow("raaga", 0)]
   );
-  assert.deepEqual(rows.map((row) => row.team).sort(), ["agni", "raaga", "tarang", "utsav"]);
+  assert.deepEqual(rows.map((row) => row.team).sort(), ["agni", "mba", "raaga", "tarang", "utsav"]);
 });
 
-test("CALCULATED sync writes all four ordered rows and ignores volunteer points", async () => {
+test("CALCULATED sync writes all five ordered rows and ignores volunteer points", async () => {
   const calculatedRows = [
     { team: "raaga" as TeamId, totalPoints: 20, firstPlaceCount: 1, secondPlaceCount: 0, thirdPlaceCount: 0 },
     { team: "agni" as TeamId, totalPoints: 8, firstPlaceCount: 0, secondPlaceCount: 1, thirdPlaceCount: 0 },
     { team: "tarang" as TeamId, totalPoints: 5, firstPlaceCount: 0, secondPlaceCount: 0, thirdPlaceCount: 1 },
     { team: "utsav" as TeamId, totalPoints: 0, firstPlaceCount: 0, secondPlaceCount: 0, thirdPlaceCount: 0 },
+    { team: "mba" as TeamId, totalPoints: 0, firstPlaceCount: 0, secondPlaceCount: 0, thirdPlaceCount: 0 },
   ];
   const writes: unknown[] = [];
+  // The sheet as it was before MBA existed: four stale rows, row 6 empty.
   const fakeSheets = {
     spreadsheets: {
       values: {
-        get: async () => ({ data: { values: [["old"]] } }),
+        get: async () => ({ data: { values: [
+          ["RAAGA", "0", "0", "0", "0"],
+          ["AGNI", "0", "0", "0", "0"],
+          ["TARANG", "0", "0", "0", "0"],
+          ["UTSUV", "0", "0", "0", "0"],
+        ] } }),
         update: async (request: unknown) => { writes.push(request); return {}; },
       },
     },
@@ -787,11 +821,13 @@ test("CALCULATED sync writes all four ordered rows and ignores volunteer points"
   assert.equal(writes.length, 1);
   const request = writes[0] as { range: string; requestBody: { values: string[][] } };
   assert.equal(request.range, CALCULATED_WRITE_RANGE);
+  assert.equal(CALCULATED_WRITE_RANGE, "CALCULATED!A2:E6");
   assert.deepEqual(request.requestBody.values, [
     ["RAAGA", "20", "1", "0", "0"],
     ["AGNI", "8", "0", "1", "0"],
     ["TARANG", "5", "0", "0", "1"],
     ["UTSUV", "0", "0", "0", "0"],
+    ["MBA", "0", "0", "0", "0"],
   ]);
   assert.deepEqual(calculatedRowsToSheetValues(calculatedRows), request.requestBody.values);
 });
@@ -1060,8 +1096,244 @@ test("short row (fewer cells than headers) does not throw", () => {
   assert.equal(r!.status,         "upcoming"); // default
 });
 
+// ─── SECTION 16: MBA — the fifth team ────────────────────────────────────────
+
+section("16. MBA — fifth team");
+
+test("parseTeamId accepts every canonical team, case/whitespace-insensitive", () => {
+  assert.equal(parseTeamId("MBA"), "mba");
+  assert.equal(parseTeamId("  mba "), "mba");
+  assert.equal(parseTeamId("RAAGA"), "raaga");
+  assert.equal(parseTeamId("Agni"), "agni");
+  assert.equal(parseTeamId("TARANG"), "tarang");
+  assert.equal(parseTeamId("UTSAV"), "utsav");
+});
+
+test("parseTeamId maps the CALCULATED-tab spelling UTSUV to utsav", () => {
+  assert.equal(parseTeamId("UTSUV"), "utsav");
+});
+
+test("parseTeamId rejects blank and unknown teams instead of guessing", () => {
+  assert.equal(parseTeamId(""), null);
+  assert.equal(parseTeamId("   "), null);
+  assert.equal(parseTeamId(undefined), null);
+  assert.equal(parseTeamId("MBA2"), null);
+  assert.equal(parseTeamId("staff"), null);
+});
+
+test("MBA appears with zero points and zero placements when it has no results", () => {
+  const rows = calculateCalculatedLeaderboard([calculatedEvent("g1", "group", "completed")], [
+    calculatedResult("g1", "raaga", 1),
+  ]);
+  const mba = rows.find((row) => row.team === "mba");
+  assert.ok(mba, "MBA row must be present");
+  assert.deepEqual(
+    [mba!.totalPoints, mba!.firstPlaceCount, mba!.secondPlaceCount, mba!.thirdPlaceCount],
+    [0, 0, 0, 0]
+  );
+});
+
+test("MBA earns official points per category and correct placement counts", () => {
+  const rows = calculateCalculatedLeaderboard(
+    [
+      calculatedEvent("g", "group", "completed"),
+      calculatedEvent("d", "duo", "completed"),
+      calculatedEvent("s", "solo", "completed"),
+      calculatedEvent("o", "offstage", "completed"),
+    ],
+    [
+      calculatedResult("g", "mba", 1, 999), // 20, not 999
+      calculatedResult("d", "mba", 2, 999), // 8
+      calculatedResult("s", "mba", 3, 999), // 5
+      calculatedResult("o", "mba", 3, 999), // 3
+    ]
+  );
+  const mba = rows.find((row) => row.team === "mba")!;
+  assert.equal(mba.totalPoints, 36);
+  assert.equal(mba.firstPlaceCount, 1);
+  assert.equal(mba.secondPlaceCount, 1);
+  assert.equal(mba.thirdPlaceCount, 2);
+  // Nobody else is credited for MBA's results.
+  assert.ok(rows.filter((row) => row.team !== "mba").every((row) => row.totalPoints === 0));
+});
+
+test("MBA results in upcoming events earn nothing", () => {
+  const rows = calculateCalculatedLeaderboard(
+    [calculatedEvent("u", "group", "upcoming")],
+    [calculatedResult("u", "mba", 1)]
+  );
+  assert.equal(rows.find((row) => row.team === "mba")!.totalPoints, 0);
+});
+
+test("calculateTeamStandings includes MBA", () => {
+  const standings = calculateTeamStandings(TEAMS, {}, {});
+  assert.ok(standings.some((s) => s.team.id === "mba"));
+  assert.equal(standings.length, 5);
+});
+
+test("MBA MANUAL blank → uses calculated total", () => {
+  const mba = calculateEffectiveLeaderboard(calculatedRowsForManualTests(), [])
+    .find((row) => row.team === "mba")!;
+  assert.equal(mba.totalPoints, 30);
+  assert.equal(mba.manualTotal, null);
+});
+
+test("MBA MANUAL zero → valid override to 0", () => {
+  const mba = calculateEffectiveLeaderboard(calculatedRowsForManualTests(), [manualRow("mba", 0)])
+    .find((row) => row.team === "mba")!;
+  assert.equal(mba.totalPoints, 0);
+  assert.equal(mba.manualTotal, 0);
+  assert.equal(mba.calculatedPoints, 30);
+});
+
+test("MBA MANUAL positive → override; placement counts unchanged", () => {
+  const mba = calculateEffectiveLeaderboard(calculatedRowsForManualTests(), [manualRow("mba", 120)])
+    .find((row) => row.team === "mba")!;
+  assert.equal(mba.totalPoints, 120);
+  assert.equal(mba.rank, 1);
+  assert.equal(mba.pointGap, 0);
+  assert.equal(mba.firstPlaceCount, 1);
+  assert.equal(mba.secondPlaceCount, 0);
+  assert.equal(mba.thirdPlaceCount, 2);
+});
+
+test("MBA MANUAL invalid text → falls back to calculated", () => {
+  const mba = calculateEffectiveLeaderboard(calculatedRowsForManualTests(), [manualRow("mba", "lots")])
+    .find((row) => row.team === "mba")!;
+  assert.equal(mba.totalPoints, 30);
+  assert.equal(mba.manualTotal, null);
+});
+
+test("MBA MANUAL negative → falls back to calculated", () => {
+  const mba = calculateEffectiveLeaderboard(calculatedRowsForManualTests(), [manualRow("mba", -10)])
+    .find((row) => row.team === "mba")!;
+  assert.equal(mba.totalPoints, 30);
+  assert.equal(mba.manualTotal, null);
+});
+
+test("MBA tied with another team shares the rank; next rank skips", () => {
+  // RAAGA 100, AGNI 80, TARANG 60, MBA set to 80 manually, UTSAV 0
+  const rows = calculateEffectiveLeaderboard(calculatedRowsForManualTests(), [manualRow("mba", 80)]);
+  const byTeam = Object.fromEntries(rows.map((row) => [row.team, row]));
+  assert.equal(byTeam.raaga.rank, 1);
+  assert.equal(byTeam.agni.rank, 2);
+  assert.equal(byTeam.mba.rank, 2);
+  assert.equal(byTeam.tarang.rank, 4);
+  assert.equal(byTeam.utsav.rank, 5);
+  assert.equal(byTeam.mba.pointGap, 20);
+});
+
+/** A fake Sheets client that keeps the CALCULATED range in memory. */
+function inMemoryCalculatedSheet(initial: string[][]) {
+  let stored = initial.map((row) => [...row]);
+  const calls = { get: 0, update: 0, append: 0 };
+  const client = {
+    spreadsheets: {
+      values: {
+        get: async () => { calls.get++; return { data: { values: stored } }; },
+        update: async (request: { requestBody: { values: string[][] } }) => {
+          calls.update++;
+          stored = request.requestBody.values.map((row) => [...row]);
+          return {};
+        },
+        append: async () => { calls.append++; return {}; },
+      },
+    },
+  };
+  return { client, calls, read: () => stored };
+}
+
+test("repeated CALCULATED sync writes once and never duplicates the MBA row", async () => {
+  const rows = calculatedRowsForManualTests();
+  const sheet = inMemoryCalculatedSheet([]);
+  assert.equal(await synchronizeCalculatedRows(rows, sheet.client as never, "t"), true);
+  assert.equal(await synchronizeCalculatedRows(rows, sheet.client as never, "t"), false);
+  assert.equal(await synchronizeCalculatedRows(rows, sheet.client as never, "t"), false);
+  assert.equal(sheet.calls.update, 1);
+  assert.equal(sheet.calls.append, 0);
+  const stored = sheet.read();
+  assert.equal(stored.length, 5);
+  assert.equal(stored.filter((row) => row[0] === "MBA").length, 1);
+  assert.deepEqual(stored[4], ["MBA", "30", "1", "0", "2"]);
+});
+
+test("CALCULATED sync refuses to overwrite a row labelled for another purpose", async () => {
+  const sheet = inMemoryCalculatedSheet([
+    ["RAAGA", "0", "0", "0", "0"],
+    ["AGNI", "0", "0", "0", "0"],
+    ["TARANG", "0", "0", "0", "0"],
+    ["UTSUV", "0", "0", "0", "0"],
+    ["TOTAL", "0", "0", "0", "0"], // unexpected content where MBA belongs
+  ]);
+  const originalError = console.error;
+  console.error = () => {}; // the refusal is logged; keep test output clean
+  try {
+    assert.equal(
+      await synchronizeCalculatedRows(calculatedRowsForManualTests(), sheet.client as never, "t"),
+      false
+    );
+  } finally {
+    console.error = originalError;
+  }
+  assert.equal(sheet.calls.update, 0);
+  assert.equal(sheet.read()[4][0], "TOTAL");
+});
+
+test("RESULTS rows map to the right team, including MBA", () => {
+  const header = ["RESULT_ID", "EVENT_ID", "EVENT_NAME", "POSITION", "ENTRY_NAME", "TEAM", "POINTS"];
+  const map = parseResultRows([
+    header,
+    ["R1-1", "E1", "GROUP DANCE", "1", "MBA Crew", "MBA", "999"],
+    ["R1-2", "E1", "GROUP DANCE", "2", "Raaga Crew", "RAAGA", ""],
+    ["R1-3", "E1", "GROUP DANCE", "3", "Utsav Crew", "UTSAV", ""],
+  ]);
+  const placements = map.get("E1")!;
+  assert.deepEqual(placements.map((p) => [p.placement, p.teamId]), [[1, "mba"], [2, "raaga"], [3, "utsav"]]);
+  assert.ok(placements.every((p) => p.pointsAwarded === 0), "sheet POINTS must not be trusted");
+});
+
+test("RESULTS rows with a blank or unknown TEAM are skipped, not given to RAAGA", () => {
+  const header = ["RESULT_ID", "EVENT_ID", "EVENT_NAME", "POSITION", "ENTRY_NAME", "TEAM", "POINTS"];
+  const map = parseResultRows([
+    header,
+    ["R1-1", "E1", "DUO DANCE", "1"],                       // position pre-filled, no team yet
+    ["R1-2", "E1", "DUO DANCE", "2", "Someone", ""],
+    ["R1-3", "E1", "DUO DANCE", "3", "Someone", "GUESTS"], // not a team
+    ["R2-1", "E2", "SOLO SONG", "1", "Singer", "MBA"],
+  ]);
+  assert.equal(map.has("E1"), false);
+  assert.deepEqual(map.get("E2")!.map((p) => p.teamId), ["mba"]);
+});
+
+test("end to end: an MBA RESULTS row scores MBA through the official table", () => {
+  const header = ["EVENT_ID", "POSITION", "ENTRY_NAME", "TEAM"];
+  const map = parseResultRows([header, ["E9", "1", "x", "MBA"]]);
+  const results: CompetitionEventResult[] = [...map.entries()].map(([eventId, placements]) => ({
+    eventId,
+    placements,
+    isDemoData: false,
+  }));
+  const rows = calculateCalculatedLeaderboard([calculatedEvent("E9", "solo", "completed")], results);
+  assert.equal(rows.find((row) => row.team === "mba")!.totalPoints, 10);
+  assert.equal(rows.find((row) => row.team === "raaga")!.totalPoints, 0);
+});
+
+test("Team Lookup house cards: the four houses still resolve; MBA has none", () => {
+  for (const team of ["RAAGA", "AGNI", "TARANG", "UTSAV"]) {
+    const house = resolveHouse(team);
+    assert.ok(house, `${team} must still resolve to its house card`);
+    assert.equal(house!.name, team);
+    assert.ok(house!.frontImage.includes(team.toLowerCase()));
+    assert.ok(house!.backImage.includes(team.toLowerCase()));
+  }
+  assert.equal(resolveHouse("MBA"), null);
+  assert.equal(resolveHouse("mba"), null);
+  assert.equal(resolveHouse(""), null);
+});
+
 // ─── SUMMARY ─────────────────────────────────────────────────────────────────
 
+Promise.all(pending).then(() => {
 console.log(`\n${"═".repeat(64)}`);
 console.log(`  MUDRA 2026 Audit — ${passed + failed} tests total`);
 console.log(`  ✓ PASSED: ${passed}`);
@@ -1072,3 +1344,4 @@ if (failed > 0) {
 } else {
   console.log("  All tests passed.\n");
 }
+});
