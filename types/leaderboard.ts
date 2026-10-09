@@ -1,7 +1,8 @@
 import { TeamId } from './team';
 
 export type PointsCategory = 'group' | 'duo' | 'solo' | 'offstage';
-export type LeaderboardTeamId = 'raaga' | 'agni' | 'tarang' | 'utsav';
+/** Leaderboard rows use the canonical team ids (see TEAM_IDS). */
+export type LeaderboardTeamId = TeamId;
 
 export interface CalculatedLeaderboardRow {
   team: LeaderboardTeamId;
