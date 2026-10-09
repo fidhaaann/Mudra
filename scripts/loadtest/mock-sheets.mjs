@@ -6,6 +6,8 @@
 //
 // Control endpoints (for the load script):
 //   GET /__control?mode=ok|fail|quota|slow&delayMs=1500   change behaviour
+//   GET /__control?putFail=1                               make writes fail (reads unaffected)
+//   GET /__control?bump=1                                  change one synthetic result (new standings)
 //   GET /__stats                                           call counters
 //   GET /__reset                                           zero the counters
 
@@ -59,6 +61,7 @@ for (let i = 1; i <= 3000; i++) {
 
 let mode = "ok";
 let delayMs = 0;
+let putFail = false;
 let stats = { gets: {}, puts: 0, failures: 0, total: 0 };
 
 const colIndex = (letters) => [...letters].reduce((n, c) => n * 26 + c.charCodeAt(0) - 64, 0) - 1;
@@ -83,9 +86,17 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${port}`);
 
   if (url.pathname === "/__control") {
-    mode = url.searchParams.get("mode") ?? mode;
-    delayMs = Number(url.searchParams.get("delayMs") ?? (mode === "slow" ? 1500 : 0));
-    return send(res, 200, { mode, delayMs });
+    if (url.searchParams.has("putFail")) putFail = url.searchParams.get("putFail") === "1";
+    if (url.searchParams.get("bump") === "1") {
+      // Rotate the 1st-place team of the first completed event.
+      const row = SHEETS.RESULTS[1];
+      row[5] = TEAMS[(TEAMS.indexOf(row[5]) + 1) % TEAMS.length];
+    }
+    if (url.searchParams.has("mode") || url.searchParams.has("delayMs")) {
+      mode = url.searchParams.get("mode") ?? mode;
+      delayMs = Number(url.searchParams.get("delayMs") ?? (mode === "slow" ? 1500 : 0));
+    }
+    return send(res, 200, { mode, delayMs, putFail });
   }
   if (url.pathname === "/__stats") return send(res, 200, { mode, delayMs, ...stats });
   if (url.pathname === "/__reset") {
@@ -113,6 +124,10 @@ const server = http.createServer(async (req, res) => {
   if (!rows) return send(res, 400, { error: { code: 400, message: `Unable to parse range: ${range}` } });
 
   if (req.method === "PUT") {
+    if (putFail) {
+      stats.failures++;
+      return send(res, 503, { error: { code: 503, message: "Write failed (simulated).", status: "UNAVAILABLE" } });
+    }
     let body = "";
     for await (const chunk of req) body += chunk;
     stats.puts++;

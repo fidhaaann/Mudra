@@ -303,6 +303,14 @@ export default function HomePage() {
           </p>
         )}
 
+        {/* Fallback copy: say so rather than presenting old standings as live */}
+        {leaderboard?.dataStatus === "stale" && (
+          <p role="status" className="text-center font-body text-xs text-[#EE8814] italic">
+            Live updates are temporarily unavailable. Showing standings as of{" "}
+            {new Date(leaderboard.lastUpdated).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}.
+          </p>
+        )}
+
         {/* Kalathilakam / Kalaprathibha — separate source (GET /api/awards) */}
         <AwardWinners />
         </div>

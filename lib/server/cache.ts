@@ -79,6 +79,45 @@ export function getCacheStats(): Record<string, CacheStats> {
   return Object.fromEntries([...stats.entries()].map(([k, v]) => [k, { ...v }]));
 }
 
+export type DataStatus = 'live' | 'stale';
+
+export interface DataFreshness {
+  /** 'stale' when any source is being served from a fallback copy. */
+  dataStatus: DataStatus;
+  /** When the oldest of the sources was read from Google Sheets (ISO). */
+  dataAsOf: string;
+}
+
+/**
+ * Freshness of the values currently cached under `keys` — call right after
+ * loading them. A value counts as stale once it is past its TTL (it is then
+ * only being served because a refresh failed or is still running), so
+ * responses can tell users the data may be out of date instead of presenting
+ * old results as live.
+ */
+export function describeFreshness(keys: string[], now = Date.now()): DataFreshness {
+  let oldest = Infinity;
+  let stale = false;
+  for (const key of keys) {
+    const entry = entries.get(key);
+    if (!entry || entry.value === undefined) continue;
+    oldest = Math.min(oldest, entry.loadedAt);
+    if (now >= entry.expiresAt) stale = true;
+  }
+  return {
+    dataStatus: stale ? 'stale' : 'live',
+    dataAsOf: new Date(Number.isFinite(oldest) ? oldest : now).toISOString(),
+  };
+}
+
+/** Mark every cached value as past its TTL, keeping the values (tests only). */
+export function expireCacheForTests(): void {
+  for (const entry of entries.values()) {
+    entry.expiresAt = 0;
+    entry.retryAfter = 0;
+  }
+}
+
 /** Drop all cached values and counters (tests only). */
 export function resetCache(): void {
   entries.clear();

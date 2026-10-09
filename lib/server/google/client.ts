@@ -39,10 +39,36 @@ const SCOPES: Record<Scope, string> = {
 
 const clients = new Map<Scope, sheets_v4.Sheets>();
 
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
+
+/**
+ * Load-test hook: SHEETS_API_MOCK_ROOT routes Sheets calls to the local mock
+ * server (scripts/loadtest/mock-sheets.mjs). It is honoured ONLY when
+ *  - the deployment is not Vercel Production (VERCEL_ENV !== 'production'), and
+ *  - the URL points at this machine (http://127.0.0.1 / localhost / [::1]).
+ * Anything else is ignored with an error log, so a stray variable can never
+ * make the live site serve mock or third-party data.
+ */
+export function resolveMockRoot(env: NodeJS.ProcessEnv = process.env): string | null {
+  const raw = env.SHEETS_API_MOCK_ROOT?.trim();
+  if (!raw) return null;
+  if (env.VERCEL_ENV === 'production') {
+    console.error('SHEETS_API_MOCK_ROOT is set in Production; ignoring it and using Google Sheets.');
+    return null;
+  }
+  try {
+    const url = new URL(raw);
+    if (url.protocol === 'http:' && LOOPBACK_HOSTS.has(url.hostname)) return url.toString();
+  } catch {
+    // fall through
+  }
+  console.error('SHEETS_API_MOCK_ROOT must be a loopback http URL; ignoring it.');
+  return null;
+}
+
 function createClient(scope: Scope): sheets_v4.Sheets {
-  // Load-test / staging hook: route Sheets calls to a local mock server
-  // (scripts/loadtest/mock-sheets.mjs). No credentials are sent to it.
-  const mockRoot = process.env.SHEETS_API_MOCK_ROOT;
+  // No credentials are ever sent to the mock.
+  const mockRoot = resolveMockRoot();
   if (mockRoot) {
     return google.sheets({ version: 'v4', rootUrl: mockRoot, ...REQUEST_POLICY });
   }

@@ -1,3 +1,4 @@
+import type { DataStatus } from './leaderboard';
 import { CompetitionCategory, ParticipantType, PointsCategory, EventStatus } from "./event";
 
 /**
@@ -36,8 +37,14 @@ export interface ScheduledEvent {
 export interface ScheduleResponse {
   /** All events from the EVENTS sheet, scheduled ones first. */
   events: ScheduledEvent[];
-  /** ISO timestamp of when this response was generated. */
+  /** When the EVENTS tab was read (ISO) — not the response time. */
   lastUpdated: string;
+  /**
+   * 'live' when every source was read from Google Sheets within its cache
+   * window; 'stale' when a fallback copy is being shown because Sheets is
+   * unavailable or slow. Clients should say so instead of implying live data.
+   */
+  dataStatus: DataStatus;
   /** Number of events that have at least a date value. */
   scheduledCount: number;
   /** Number of events without any scheduling information. */

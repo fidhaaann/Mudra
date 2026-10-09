@@ -1,7 +1,7 @@
 import { after } from 'next/server';
 import { fetchEvents, fetchResults, getSheetsClient } from './competition';
 import { getGoogleEnvVars } from '../security/env';
-import { cachedLoad, describeError } from '../cache';
+import { cachedLoad, describeError, describeFreshness } from '../cache';
 import { TeamId } from '@/types/team';
 import { CALCULATED_SHEET_LABELS, TEAMS, parseTeamId } from '@/data/teams';
 import { Event } from '@/types/event';
@@ -400,8 +400,11 @@ export async function buildLeaderboard(): Promise<LeaderboardResponse> {
     fetchResults(),
     fetchManualLeaderboard(),
   ]);
+  const freshness = describeFreshness(['events', 'results', 'manual']);
   const calculatedRows = calculateCalculatedLeaderboard(events, results);
-  scheduleCalculatedSync(calculatedRows);
+  // Only sync from live data: a fallback copy may be older than what another
+  // instance already wrote, and must never overwrite newer totals.
+  if (freshness.dataStatus === 'live') scheduleCalculatedSync(calculatedRows);
   const effectiveRows = calculateEffectiveLeaderboard(calculatedRows, manualRows);
   const effectiveByTeam = new Map(effectiveRows.map((row) => [row.team, row]));
 
@@ -503,7 +506,8 @@ export async function buildLeaderboard(): Promise<LeaderboardResponse> {
   return {
     teams: entries,
     completedEventCount,
-    lastUpdated: new Date().toISOString(),
+    lastUpdated: freshness.dataAsOf,
+    dataStatus: freshness.dataStatus,
   };
 }
 

@@ -544,6 +544,14 @@ export default function SchedulePage() {
               </p>
             )}
 
+            {/* Fallback copy: say so rather than implying the schedule is current */}
+            {data.dataStatus === "stale" && (
+              <p role="status" className="text-center font-body text-xs text-[#EE8814] italic">
+                Live updates are temporarily unavailable. Showing the schedule as of{" "}
+                {new Date(data.lastUpdated).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}.
+              </p>
+            )}
+
             {/* footer meta */}
             <p className="text-center font-body text-[10px] text-[#E3D28A]/25">
               Last updated:{" "}

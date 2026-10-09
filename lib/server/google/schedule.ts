@@ -1,4 +1,5 @@
 import { fetchEvents } from './competition';
+import { describeFreshness } from '../cache';
 import {
   CompetitionCategory,
   ParticipantType,
@@ -113,6 +114,7 @@ function projectEvent(event: Event): ScheduledEvent {
  */
 export async function fetchSchedule(): Promise<ScheduleResponse> {
   const events = await fetchEvents();
+  const freshness = describeFreshness(['events']);
 
   const scheduled:   ScheduledEvent[] = [];
   const unscheduled: ScheduledEvent[] = [];
@@ -136,7 +138,8 @@ export async function fetchSchedule(): Promise<ScheduleResponse> {
 
   return {
     events:           [...scheduled, ...unscheduled],
-    lastUpdated:      new Date().toISOString(),
+    lastUpdated:      freshness.dataAsOf,
+    dataStatus:       freshness.dataStatus,
     scheduledCount:   scheduled.length,
     unscheduledCount: unscheduled.length,
   };

@@ -15,6 +15,11 @@ export const CACHE_STATIC_DATA = 'public, s-maxage=60, stale-while-revalidate=30
  * 60 s while it refreshes in the background.
  */
 export const CACHE_LIVE_DATA = 'public, s-maxage=15, stale-while-revalidate=60';
+/**
+ * A fallback copy is being served (Sheets unavailable or slow): let the CDN
+ * hold it only briefly so fresh data reappears as soon as Sheets recovers.
+ */
+export const CACHE_STALE_DATA = 'public, s-maxage=5';
 /** Never cache (errors, rate limits, personal lookups). */
 export const NO_STORE = 'no-store';
 

@@ -1,6 +1,9 @@
 import { TeamId } from './team';
 
 export type PointsCategory = 'group' | 'duo' | 'solo' | 'offstage';
+
+/** Whether a response reflects current sheet data or a fallback copy. */
+export type DataStatus = 'live' | 'stale';
 /** Leaderboard rows use the canonical team ids (see TEAM_IDS). */
 export type LeaderboardTeamId = TeamId;
 
@@ -49,5 +52,12 @@ export interface TeamLeaderboardEntry {
 export interface LeaderboardResponse {
   teams: TeamLeaderboardEntry[];
   completedEventCount: number;
-  lastUpdated: string; // ISO timestamp
+  /** When the underlying sheet data was read (ISO) — not the response time. */
+  lastUpdated: string;
+  /**
+   * 'live' when every source was read from Google Sheets within its cache
+   * window; 'stale' when a fallback copy is being shown because Sheets is
+   * unavailable or slow. Clients should say so instead of implying live data.
+   */
+  dataStatus: DataStatus;
 }

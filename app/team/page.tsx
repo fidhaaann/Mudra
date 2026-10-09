@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ChevronDown } from "lucide-react";
 import { lookupStudentTeam } from "@/lib/lookup";
+import { DEPARTMENTS, SEMESTERS } from "@/lib/lookup-options";
 import { resolveHouse } from "@/lib/houses";
 import { LotusEtch } from "@/components/ui/LotusEtch";
 import { StudentLookupCandidate, StudentLookupQuery, StudentLookupResult } from "@/types/lookup";
@@ -25,8 +26,6 @@ const getDesktopServer = () => false;
 
 const REVEAL_EASE = [0.22, 1, 0.36, 1] as const;
 
-const SEMESTERS = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII"] as const;
-const DEPARTMENTS = ["CE", "CSE", "EC", "EEE", "EL", "SFE", "IT", "ME", "RA"] as const;
 
 export default function TeamPage() {
   const [name, setName] = useState("");
