@@ -1,56 +1,44 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateLookupRequest } from '@/lib/server/validation/lookup';
 import { findStudentTeam } from '@/lib/server/services/team-lookup';
-import { apiRateLimiter } from '@/lib/server/security/rate-limit';
+import { lookupRateLimiter } from '@/lib/server/security/rate-limit';
+import { NO_STORE, rateLimit } from '@/lib/server/http';
+
+/** Personal results: never stored by the CDN or the browser cache. */
+const PRIVATE = { 'Cache-Control': NO_STORE };
 
 export async function GET(request: NextRequest) {
-  // 1. Rate Limiting
-  // Use IP as identifier. Note: In Vercel, x-forwarded-for contains the client IP.
-  const ip = request.headers.get('x-forwarded-for') || '127.0.0.1';
-  const rateLimitResult = await apiRateLimiter.limit(ip);
-  
-  if (!rateLimitResult.success) {
-    return NextResponse.json(
-      { error: 'Too many requests. Please try again later.' },
-      { 
-        status: 429,
-        headers: {
-          'X-RateLimit-Limit': rateLimitResult.limit.toString(),
-          'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
-          'X-RateLimit-Reset': rateLimitResult.reset.toString(),
-        }
-      }
-    );
-  }
+  // 1. Rate limiting (per instance; see lib/server/security/rate-limit.ts)
+  const limited = await rateLimit(request, lookupRateLimiter);
+  if (limited) return limited;
 
-  // 2. Input Validation
-  const searchParams = request.nextUrl.searchParams;
-  const validationResult = validateLookupRequest(searchParams);
-
+  // 2. Input validation
+  const validationResult = validateLookupRequest(request.nextUrl.searchParams);
   if (validationResult.error || !validationResult.data) {
-    return NextResponse.json(
-      { error: validationResult.error },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: validationResult.error }, { status: 400, headers: PRIVATE });
   }
 
-  // 3. Service Layer (Google Sheets Interaction)
+  // 3. Service layer (served from the cached student list)
   const result = await findStudentTeam(validationResult.data);
 
-  // 4. Response Mapping
+  // 4. Response mapping
   switch (result.type) {
     case 'success':
-      return NextResponse.json({ data: result.data }, { status: 200 });
+      return NextResponse.json({ data: result.data }, { status: 200, headers: PRIVATE });
     case 'candidates':
       // Possible matches carry name/semester/branch only — never the team.
-      return NextResponse.json({ matches: result.matches, more: result.more }, { status: 200 });
+      return NextResponse.json({ matches: result.matches, more: result.more }, { status: 200, headers: PRIVATE });
     case 'query_too_short':
-      return NextResponse.json({ error: result.message }, { status: 400 });
+      return NextResponse.json({ error: result.message }, { status: 400, headers: PRIVATE });
     case 'not_found':
-      return NextResponse.json({ error: result.message }, { status: 404 });
+      return NextResponse.json({ error: result.message }, { status: 404, headers: PRIVATE });
     case 'multiple_matches':
-      return NextResponse.json({ error: result.message }, { status: 409 });
+      return NextResponse.json({ error: result.message }, { status: 409, headers: PRIVATE });
     case 'error':
-      return NextResponse.json({ error: result.message }, { status: 500 });
+      // Student data unavailable (Google Sheets down and no cached copy).
+      return NextResponse.json(
+        { error: result.message },
+        { status: 503, headers: { ...PRIVATE, 'Retry-After': '30' } }
+      );
   }
 }

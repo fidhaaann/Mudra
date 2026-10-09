@@ -1,26 +1,16 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { fetchSchedule } from '@/lib/server/google/schedule';
 import { apiRateLimiter } from '@/lib/server/security/rate-limit';
+import { CACHE_STATIC_DATA, jsonOk, rateLimit, upstreamUnavailable } from '@/lib/server/http';
 
 export async function GET(request: NextRequest) {
+  const limited = await rateLimit(request, apiRateLimiter);
+  if (limited) return limited;
+
   try {
-    const ip = request.headers.get('x-forwarded-for') || '127.0.0.1';
-    const rateLimitResult = await apiRateLimiter.limit(ip);
-
-    if (!rateLimitResult.success) {
-      return NextResponse.json(
-        { error: 'Too many requests. Please try again later.' },
-        { status: 429 }
-      );
-    }
-
     const schedule = await fetchSchedule();
-    return NextResponse.json(schedule);
+    return jsonOk(schedule, CACHE_STATIC_DATA);
   } catch (error) {
-    console.error('Schedule API Error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch schedule' },
-      { status: 500 }
-    );
+    return upstreamUnavailable('Schedule API Error', 'Failed to fetch schedule', error);
   }
 }

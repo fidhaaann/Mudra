@@ -13,6 +13,7 @@ import { createPortal } from "react-dom";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { TeamLeaderboardEntry, LeaderboardResponse } from "@/types/leaderboard";
 import { getTeamColor } from "@/lib/team-colors";
+import { TEAMS } from "@/data/teams";
 import { TeamWordmark } from "@/components/ui/TeamNameLanguageTransition";
 import { AwardWinners } from "@/components/ui/AwardWinners";
 
@@ -449,23 +450,26 @@ function TeamBarChart({ teams, hasResults }: ChartProps) {
 
 // ─── loading skeleton ─────────────────────────────────────────────────────────
 
+/** Placeholder bar heights (%), cycled across however many teams exist. */
+const SKELETON_BAR_HEIGHTS = [60, 80, 45, 70, 55];
+
 function LoadingSkeleton() {
   return (
     <div className="space-y-3" aria-label="Loading leaderboard">
       {/* Chart skeleton */}
-      <div className="border border-[#E3D28A]/20 bg-[#110B0B] p-6 animate-pulse h-65 flex items-end gap-4 justify-center overflow-hidden">
-        {[60, 80, 45, 70].map((h, i) => (
+      <div className="border border-[#E3D28A]/20 bg-[#110B0B] p-6 animate-pulse h-65 flex items-end gap-3 sm:gap-4 justify-center overflow-hidden">
+        {TEAMS.map((team, i) => (
           <div
-            key={i}
-            className="bg-[#E3D28A]/10 w-12 sm:w-14 rounded-sm shrink-0"
-            style={{ height: `${h}%` }}
+            key={team.id}
+            className="bg-[#E3D28A]/10 w-10 sm:w-14 rounded-sm shrink-0"
+            style={{ height: `${SKELETON_BAR_HEIGHTS[i % SKELETON_BAR_HEIGHTS.length]}%` }}
           />
         ))}
       </div>
-      {/* Table rows skeleton */}
-      {Array.from({ length: 4 }).map((_, i) => (
+      {/* Table rows skeleton — one per team */}
+      {TEAMS.map((team) => (
         <div
-          key={i}
+          key={team.id}
           className="border border-[#E3D28A]/20 bg-[#110B0B] p-4 sm:p-5 flex items-center justify-between animate-pulse"
         >
           <div className="flex items-center gap-3">
@@ -655,7 +659,7 @@ export default function LeaderboardPage() {
 
   return (
     // min-w-0 prevents the flex child from over-stretching on narrow viewports
-    <div className="w-full min-w-0 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-16 space-y-12">
+    <div className="w-full min-w-0 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-6 space-y-12">
 
       {/* Title */}
       <div className="space-y-1.5 min-w-0">
@@ -663,7 +667,7 @@ export default function LeaderboardPage() {
           LEADERBOARD
         </h1>
         <p className="font-body text-xs sm:text-sm text-[#E3D28A]/70">
-          Official championship standings for the four houses of Mudra.
+          Official championship standings for every competing team of Mudra.
         </p>
       </div>
 

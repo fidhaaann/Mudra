@@ -1,26 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { buildLeaderboard } from '@/lib/server/google/leaderboard';
 import { apiRateLimiter } from '@/lib/server/security/rate-limit';
+import { CACHE_LIVE_DATA, jsonOk, rateLimit, upstreamUnavailable } from '@/lib/server/http';
 
 export async function GET(request: NextRequest) {
+  const limited = await rateLimit(request, apiRateLimiter);
+  if (limited) return limited;
+
   try {
-    const ip = request.headers.get('x-forwarded-for') || '127.0.0.1';
-    const rateLimitResult = await apiRateLimiter.limit(ip);
-
-    if (!rateLimitResult.success) {
-      return NextResponse.json(
-        { error: 'Too many requests. Please try again later.' },
-        { status: 429 }
-      );
-    }
-
     const leaderboard = await buildLeaderboard();
-    return NextResponse.json(leaderboard);
+    return jsonOk(leaderboard, CACHE_LIVE_DATA);
   } catch (error) {
-    console.error('Leaderboard API Error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch leaderboard' },
-      { status: 500 }
-    );
+    // No usable data: fail honestly (never return fabricated zero scores).
+    return upstreamUnavailable('Leaderboard API Error', 'Failed to fetch leaderboard', error);
   }
 }
