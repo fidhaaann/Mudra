@@ -91,8 +91,8 @@ export default function HomePage() {
   // ── Hero → next-section scroll depth transition ──────────────────────────
   // The next section (standings) rises up from a slight yPercent offset.
   // Pure GSAP transforms — zero React state per frame, no layout properties.
-  const heroRef     = useRef<HTMLElement>(null);
-  const nextRef     = useRef<HTMLElement>(null);
+  const heroRef = useRef<HTMLElement>(null);
+  const nextRef = useRef<HTMLElement>(null);
   const nextContentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -112,12 +112,12 @@ export default function HomePage() {
     // Standings contents rise up to their natural position as hero scrolls away
     const nextTween = gsap.to(nextContent, {
       yPercent: 0,
-      ease:     "none",
+      ease: "none",
       scrollTrigger: {
-        trigger:             hero,
-        start:               "top top",
-        end:                 "bottom top",
-        scrub:               1.0,
+        trigger: hero,
+        start: "top top",
+        end: "bottom top",
+        scrub: 1.0,
         invalidateOnRefresh: true,
       },
     });
@@ -197,10 +197,9 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Cultural Tagline — light Malayalam face. No letter-spacing:
-              tracking pulls apart Malayalam conjuncts and vowel signs. */}
-          <div className="mt-[clamp(0.6rem,2.2svh,1.5rem)] font-malayalam font-normal text-[clamp(1.1rem,2.7svh,1.65rem)] text-[#E3D28A]/90 max-w-[clamp(300px,85vw,42rem)] leading-relaxed">
-            <p lang="ml">കല സംസ്കാരിക കലോത്സവം.</p>
+          {/* Cultural Tagline — ML-TT encoded string, letter-spacing is safe here. */}
+          <div className="mt-[clamp(0.6rem,2.2svh,1.5rem)] font-malayalam font-normal text-[clamp(1.25rem,3.2svh,2rem)] tracking-[0.04em] text-[#E3D28A]/90 max-w-[clamp(300px,90vw,48rem)] leading-relaxed">
+            <p lang="ml">Ie kwkvImcnI ItemÕhw.</p>
           </div>
         </FadeContent>
 
@@ -211,109 +210,109 @@ export default function HomePage() {
       {/* 2. POINTS TABLE / TEAM STANDINGS SECTION */}
       <section id="team-standings" ref={nextRef} className="relative z-1 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-6 w-full min-w-0">
         <div ref={nextContentRef} className="relative z-1 space-y-12">
-        <div className="text-center space-y-2">
-          <div className="font-display text-xs tracking-widest text-[#E02E0B] uppercase font-bold">
-            MUDRA CHAMPIONSHIP
+          <div className="text-center space-y-2">
+            <div className="font-display text-xs tracking-widest text-[#E02E0B] uppercase font-bold">
+              MUDRA CHAMPIONSHIP
+            </div>
+            <h2 className="font-display font-black text-3xl sm:text-4xl text-[#E3D28A] tracking-wider uppercase">
+              TEAM STANDINGS & POINTS
+            </h2>
+            <p className="font-body text-xs sm:text-sm text-[#E3D28A]/70 max-w-md mx-auto">
+              Live points tally across all on-stage, off-stage, solo, duo, and group cultural events.
+            </p>
           </div>
-          <h2 className="font-display font-black text-3xl sm:text-4xl text-[#E3D28A] tracking-wider uppercase">
-            TEAM STANDINGS & POINTS
-          </h2>
-          <p className="font-body text-xs sm:text-sm text-[#E3D28A]/70 max-w-md mx-auto">
-            Live points tally across all on-stage, off-stage, solo, duo, and group cultural events.
-          </p>
-        </div>
 
-        {/* Championship podium (same leaderboard data; ranks from the API) */}
-        {leaderboardLoading && <StandingsPodiumSkeleton />}
+          {/* Championship podium (same leaderboard data; ranks from the API) */}
+          {leaderboardLoading && <StandingsPodiumSkeleton />}
 
-        {!leaderboardLoading && leaderboardError && (
-          <div className="border border-[#E02E0B]/40 bg-[#5A0E0B]/10 p-6 text-center space-y-3">
-            <p className="font-body text-xs sm:text-sm text-[#E3D28A]/80">{leaderboardError}</p>
-            <button
-              type="button"
-              onClick={loadLeaderboard}
-              className="inline-flex px-4 py-2 bg-[#E02E0B] text-[#E3D28A] font-display text-xs uppercase tracking-wider font-bold hover:bg-[#941108] transition-colors"
-            >
-              TRY AGAIN
-            </button>
-          </div>
-        )}
+          {!leaderboardLoading && leaderboardError && (
+            <div className="border border-[#E02E0B]/40 bg-[#5A0E0B]/10 p-6 text-center space-y-3">
+              <p className="font-body text-xs sm:text-sm text-[#E3D28A]/80">{leaderboardError}</p>
+              <button
+                type="button"
+                onClick={loadLeaderboard}
+                className="inline-flex px-4 py-2 bg-[#E02E0B] text-[#E3D28A] font-display text-xs uppercase tracking-wider font-bold hover:bg-[#941108] transition-colors"
+              >
+                TRY AGAIN
+              </button>
+            </div>
+          )}
 
-        {!leaderboardLoading && !leaderboardError && (
-          <StandingsPodium standings={standings} hasResults={hasResults} />
-        )}
+          {!leaderboardLoading && !leaderboardError && (
+            <StandingsPodium standings={standings} hasResults={hasResults} />
+          )}
 
-        {/* Points Breakdown Table */}
-        {!leaderboardLoading && !leaderboardError && <div className="home-standings-table-scroll border border-[#E3D28A]/40 bg-[#110B0B] overflow-x-auto overflow-y-hidden min-w-0 shadow-xl shadow-black/60">
-          <table className="min-w-full text-left font-body text-xs sm:text-sm border-collapse">
-            <thead>
-              <tr className="relative border-b border-[#E3D28A]/30 font-display text-[11px] sm:text-xs tracking-wider text-[#E3D28A]/70 uppercase">
-                <th className="relative z-10 py-3 px-3 sm:py-4 sm:px-5 whitespace-nowrap">POS</th>
-                <th className="relative z-10 py-3 px-3 sm:py-4 sm:px-5 whitespace-nowrap">HOUSE / TEAM</th>
-                <th className="relative z-10 py-3 px-3 sm:py-4 sm:px-5 text-right whitespace-nowrap">TOTAL</th>
-                <th className="relative z-10 py-3 px-3 sm:py-4 sm:px-5 text-right whitespace-nowrap">1ST</th>
-                <th className="relative z-10 py-3 px-3 sm:py-4 sm:px-5 text-right whitespace-nowrap">2ND</th>
-                <th className="relative z-10 py-3 px-3 sm:py-4 sm:px-5 text-right whitespace-nowrap">3RD</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#E3D28A]/15 font-body">
-              {standings.map((standing) => (
-                <tr key={standing.teamId} className="relative hover:bg-[#5A0E0B]/20 transition-colors">
-                  <td className="relative py-3 px-3 sm:py-4 sm:px-5 font-display font-bold text-[#FFF7E6] whitespace-nowrap">
-                    <span className="relative z-10">
-                      {hasResults ? standing.rank : "—"}
-                    </span>
-                  </td>
-                  <td
-                    className="relative py-3 px-3 sm:py-4 sm:px-5 font-display font-bold tracking-wider text-sm sm:text-base whitespace-nowrap"
-                    style={{ color: getTeamColor(standing.teamId) }}
-                  >
-                    <span className="relative z-10 inline-block">
-                      <TeamWordmark teamId={standing.teamId} teamName={standing.teamName} />
-                    </span>
-                  </td>
-                  <td className="relative py-3 px-3 sm:py-4 sm:px-5 text-right font-display font-bold text-[#FFF7E6] text-base sm:text-lg whitespace-nowrap">
-                    <span className="relative z-10">
-                      {hasResults ? standing.totalPoints : "—"}
-                    </span>
-                  </td>
-                  <td className="relative py-3 px-3 sm:py-4 sm:px-5 text-right text-[#FFF7E6]/90 whitespace-nowrap">
-                    <span className="relative z-10">
-                      {hasResults ? standing.firstPlaceCount : "—"}
-                    </span>
-                  </td>
-                  <td className="relative py-3 px-3 sm:py-4 sm:px-5 text-right text-[#FFF7E6]/90 whitespace-nowrap">
-                    <span className="relative z-10">
-                      {hasResults ? standing.secondPlaceCount : "—"}
-                    </span>
-                  </td>
-                  <td className="relative py-3 px-3 sm:py-4 sm:px-5 text-right text-[#FFF7E6]/90 whitespace-nowrap">
-                    <span className="relative z-10">
-                      {hasResults ? standing.thirdPlaceCount : "—"}
-                    </span>
-                  </td>
+          {/* Points Breakdown Table */}
+          {!leaderboardLoading && !leaderboardError && <div className="home-standings-table-scroll border border-[#E3D28A]/40 bg-[#110B0B] overflow-x-auto overflow-y-hidden min-w-0 shadow-xl shadow-black/60">
+            <table className="min-w-full text-left font-body text-xs sm:text-sm border-collapse">
+              <thead>
+                <tr className="relative border-b border-[#E3D28A]/30 font-display text-[11px] sm:text-xs tracking-wider text-[#E3D28A]/70 uppercase">
+                  <th className="relative z-10 py-3 px-3 sm:py-4 sm:px-5 whitespace-nowrap">POS</th>
+                  <th className="relative z-10 py-3 px-3 sm:py-4 sm:px-5 whitespace-nowrap">HOUSE / TEAM</th>
+                  <th className="relative z-10 py-3 px-3 sm:py-4 sm:px-5 text-right whitespace-nowrap">TOTAL</th>
+                  <th className="relative z-10 py-3 px-3 sm:py-4 sm:px-5 text-right whitespace-nowrap">1ST</th>
+                  <th className="relative z-10 py-3 px-3 sm:py-4 sm:px-5 text-right whitespace-nowrap">2ND</th>
+                  <th className="relative z-10 py-3 px-3 sm:py-4 sm:px-5 text-right whitespace-nowrap">3RD</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>}
+              </thead>
+              <tbody className="divide-y divide-[#E3D28A]/15 font-body">
+                {standings.map((standing) => (
+                  <tr key={standing.teamId} className="relative hover:bg-[#5A0E0B]/20 transition-colors">
+                    <td className="relative py-3 px-3 sm:py-4 sm:px-5 font-display font-bold text-[#FFF7E6] whitespace-nowrap">
+                      <span className="relative z-10">
+                        {hasResults ? standing.rank : "—"}
+                      </span>
+                    </td>
+                    <td
+                      className="relative py-3 px-3 sm:py-4 sm:px-5 font-display font-bold tracking-wider text-sm sm:text-base whitespace-nowrap"
+                      style={{ color: getTeamColor(standing.teamId) }}
+                    >
+                      <span className="relative z-10 inline-block">
+                        <TeamWordmark teamId={standing.teamId} teamName={standing.teamName} />
+                      </span>
+                    </td>
+                    <td className="relative py-3 px-3 sm:py-4 sm:px-5 text-right font-display font-bold text-[#FFF7E6] text-base sm:text-lg whitespace-nowrap">
+                      <span className="relative z-10">
+                        {hasResults ? standing.totalPoints : "—"}
+                      </span>
+                    </td>
+                    <td className="relative py-3 px-3 sm:py-4 sm:px-5 text-right text-[#FFF7E6]/90 whitespace-nowrap">
+                      <span className="relative z-10">
+                        {hasResults ? standing.firstPlaceCount : "—"}
+                      </span>
+                    </td>
+                    <td className="relative py-3 px-3 sm:py-4 sm:px-5 text-right text-[#FFF7E6]/90 whitespace-nowrap">
+                      <span className="relative z-10">
+                        {hasResults ? standing.secondPlaceCount : "—"}
+                      </span>
+                    </td>
+                    <td className="relative py-3 px-3 sm:py-4 sm:px-5 text-right text-[#FFF7E6]/90 whitespace-nowrap">
+                      <span className="relative z-10">
+                        {hasResults ? standing.thirdPlaceCount : "—"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>}
 
-        {!hasResults && (
-          <p className="text-center font-body text-xs text-[#E3D28A]/50 italic">
-            Standings will update automatically as verified results are published by the judging panel.
-          </p>
-        )}
+          {!hasResults && (
+            <p className="text-center font-body text-xs text-[#E3D28A]/50 italic">
+              Standings will update automatically as verified results are published by the judging panel.
+            </p>
+          )}
 
-        {/* Fallback copy: say so rather than presenting old standings as live */}
-        {leaderboard?.dataStatus === "stale" && (
-          <p role="status" className="text-center font-body text-xs text-[#EE8814] italic">
-            Live updates are temporarily unavailable. Showing standings as of{" "}
-            {new Date(leaderboard.lastUpdated).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}.
-          </p>
-        )}
+          {/* Fallback copy: say so rather than presenting old standings as live */}
+          {leaderboard?.dataStatus === "stale" && (
+            <p role="status" className="text-center font-body text-xs text-[#EE8814] italic">
+              Live updates are temporarily unavailable. Showing standings as of{" "}
+              {new Date(leaderboard.lastUpdated).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}.
+            </p>
+          )}
 
-        {/* Kalathilakam / Kalaprathibha — separate source (GET /api/awards) */}
-        <AwardWinners />
+          {/* Kalathilakam / Kalaprathibha — separate source (GET /api/awards) */}
+          <AwardWinners />
         </div>
       </section>
     </div>

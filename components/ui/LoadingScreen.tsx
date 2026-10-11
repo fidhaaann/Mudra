@@ -299,40 +299,83 @@ function MusicHint({ reducedMotion }: { reducedMotion: boolean }) {
   );
 }
 
+// ─── session flag ─────────────────────────────────────────────────────────────
+// The full intro only plays once per browser session. On every subsequent
+// reload/navigation the overlay is bypassed instantly so the hero appears
+// without any delay.
+const SESSION_KEY = "mudra:intro-seen";
+
+function hasSeenIntro(): boolean {
+  try {
+    return sessionStorage.getItem(SESSION_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function markIntroSeen(): void {
+  try {
+    sessionStorage.setItem(SESSION_KEY, "1");
+  } catch {
+    // storage blocked (private mode, quota, etc.) — silently ignore
+  }
+}
+
 // ─── main component ───────────────────────────────────────────────────────────
 
 export const LoadingScreen: React.FC = () => {
   const shouldReduceMotion = useReducedMotion() ?? false;
 
+  // SSR-safe: always start as false. sessionStorage is read client-side only,
+  // inside a useEffect, so server and client render identical initial HTML.
+  const [fastMode, setFastMode] = useState(false);
+
   const [ready,   setReady]   = useState<boolean[]>(() => MUDRA_SRCS.map(() => false));
-  const [step,    setStep]    = useState(0);
+  const [step,    setStep]    = useState(0);   // SSR-safe starting value
   const [visible, setVisible] = useState(true);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const previousOverflowRef = useRef("");
 
+  // ── client-only: activate fast-mode after hydration ──────────────────────
+  // This runs once, after the first paint, so the server and client initial
+  // renders are identical (no hydration mismatch). If the session flag is set
+  // we jump straight to LAST_STEP so the sequencer exits in ~130 ms.
+  useEffect(() => {
+    if (hasSeenIntro()) {
+      setFastMode(true);
+      setStep(LAST_STEP);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Progress derived from step — no extra state
   const barProgress = useMemo(() => step / LAST_STEP, [step]);
 
   // ── batch-decode all 6 images ─────────────────────────────────────────────
+  // Skip decoding entirely in fast-mode — images are already in disk cache.
   useEffect(() => {
     previousOverflowRef.current = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     let cancelled = false;
 
-    Promise.all(MUDRA_SRCS.map(decodeImage)).then(() => {
-      if (!cancelled) setReady(MUDRA_SRCS.map(() => true));
-    });
+    if (!fastMode) {
+      Promise.all(MUDRA_SRCS.map(decodeImage)).then(() => {
+        if (!cancelled) setReady(MUDRA_SRCS.map(() => true));
+      });
+    }
 
     return () => {
       cancelled = true;
       document.body.style.overflow = previousOverflowRef.current;
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fastMode]);
 
   // ── per-image decode (belt-and-suspenders) ────────────────────────────────
   useEffect(() => {
+    if (fastMode) return; // skip in fast-mode
     const cleanups: (() => void)[] = [];
     MUDRA_SRCS.forEach((src, i) => {
       if (ready[i]) return;
@@ -351,7 +394,7 @@ export const LoadingScreen: React.FC = () => {
     });
     return () => cleanups.forEach((f) => f());
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fastMode]);
 
   // ── advance step ──────────────────────────────────────────────────────────
   const advance = useCallback(() => {
@@ -361,9 +404,10 @@ export const LoadingScreen: React.FC = () => {
   // ── begin exit ────────────────────────────────────────────────────────────
   // Dispatches "mudra:loading-done" AT THE SAME MOMENT the overlay starts
   // fading out, so FadeContent's hero reveal runs CONCURRENTLY with the
-  // 400 ms exit fade — eliminating the black-screen gap between loading
-  // overlay gone and hero visible.
+  // exit fade — eliminating the black-screen gap between loading overlay
+  // gone and hero visible.
   const beginExit = useCallback(() => {
+    markIntroSeen();
     setVisible(false);
     document.body.style.overflow = previousOverflowRef.current;
     window.dispatchEvent(new CustomEvent("mudra:loading-done"));
@@ -373,10 +417,12 @@ export const LoadingScreen: React.FC = () => {
   useEffect(() => {
     if (!visible) return;
 
-    const holdTime = shouldReduceMotion ? HOLD_MS * 1.5 : HOLD_MS;
+    // Fast-mode uses compressed timing: skip straight to a brief exit.
+    const holdTime  = fastMode ? 50  : (shouldReduceMotion ? HOLD_MS * 1.5 : HOLD_MS);
+    const finalHold = fastMode ? 80  : FINAL_HOLD_MS;
 
     if (step >= LAST_STEP) {
-      timerRef.current = setTimeout(beginExit, holdTime + FINAL_HOLD_MS);
+      timerRef.current = setTimeout(beginExit, holdTime + finalHold);
       return () => { if (timerRef.current) clearTimeout(timerRef.current); };
     }
 
@@ -404,6 +450,7 @@ export const LoadingScreen: React.FC = () => {
     };
   }, [step, ready, visible, shouldReduceMotion, advance, beginExit]);
 
+
   // ── active image ──────────────────────────────────────────────────────────
   const activeIdx = useMemo(
     () => SEQUENCE_INDICES[Math.min(step, LAST_STEP)],
@@ -418,50 +465,55 @@ export const LoadingScreen: React.FC = () => {
           key="mudra-loading-overlay"
           initial={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: EXIT_MS / 1000, ease: "easeInOut" }}
+          transition={{ duration: fastMode ? 0.15 : EXIT_MS / 1000, ease: "easeInOut" }}
           className="fixed inset-0 z-9999 bg-[#110B0B] flex flex-col items-center justify-center gap-6 sm:gap-8 select-none overflow-hidden"
           aria-hidden="true"
         >
           <LotusBackdrop />
 
-          <div
-            className="relative shrink-0"
-            style={{
-              width:  "clamp(96px, 28vw, 180px)",
-              height: "clamp(96px, 28vw, 180px)",
-            }}
-          >
-            {MUDRA_SRCS.map((src, i) => {
-              const isActive  = i === activeIdx;
-              const isVisible = ready[i];
-              return (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  key={src}
-                  src={src}
-                  alt=""
-                  draggable={false}
-                  style={{
-                    position:      "absolute",
-                    inset:         0,
-                    width:         "100%",
-                    height:        "100%",
-                    objectFit:     "contain",
-                    opacity:       isVisible && isActive ? 1 : 0,
-                    transform:     isActive ? "scale(1)" : "scale(0.97)",
-                    transition:    shouldReduceMotion
-                      ? "opacity 0ms"
-                      : `opacity ${CROSSFADE_MS}ms ease-in-out, transform ${CROSSFADE_MS}ms ease-in-out`,
-                    pointerEvents: "none",
-                    userSelect:    "none",
-                    willChange:    isActive ? "opacity, transform" : "auto",
-                  }}
-                />
-              );
-            })}
-          </div>
+          {/* Image sequence + progress bar — hidden in fast-mode */}
+          {!fastMode && (
+            <>
+              <div
+                className="relative shrink-0"
+                style={{
+                  width:  "clamp(96px, 28vw, 180px)",
+                  height: "clamp(96px, 28vw, 180px)",
+                }}
+              >
+                {MUDRA_SRCS.map((src, i) => {
+                  const isActive  = i === activeIdx;
+                  const isVisible = ready[i];
+                  return (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      key={src}
+                      src={src}
+                      alt=""
+                      draggable={false}
+                      style={{
+                        position:      "absolute",
+                        inset:         0,
+                        width:         "100%",
+                        height:        "100%",
+                        objectFit:     "contain",
+                        opacity:       isVisible && isActive ? 1 : 0,
+                        transform:     isActive ? "scale(1)" : "scale(0.97)",
+                        transition:    shouldReduceMotion
+                          ? "opacity 0ms"
+                          : `opacity ${CROSSFADE_MS}ms ease-in-out, transform ${CROSSFADE_MS}ms ease-in-out`,
+                        pointerEvents: "none",
+                        userSelect:    "none",
+                        willChange:    isActive ? "opacity, transform" : "auto",
+                      }}
+                    />
+                  );
+                })}
+              </div>
 
-          <StoneBar progress={barProgress} reducedMotion={shouldReduceMotion} />
+              <StoneBar progress={barProgress} reducedMotion={shouldReduceMotion} />
+            </>
+          )}
         </motion.div>
       )}
     </AnimatePresence>
