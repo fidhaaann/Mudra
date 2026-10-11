@@ -197,9 +197,9 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Cultural Tagline — ML-TT encoded string, letter-spacing is safe here. */}
-          <div className="mt-[clamp(0.6rem,2.2svh,1.5rem)] font-malayalam font-normal text-[clamp(1.25rem,3.2svh,2rem)] tracking-[0.04em] text-[#E3D28A]/90 max-w-[clamp(300px,90vw,48rem)] leading-relaxed">
-            <p lang="ml">Ie kwkvImcnI ItemÕhw.</p>
+          {/* Cultural Tagline — light Malayalam face. No letter-spacing:
+              tracking pulls apart Malayalam conjuncts and vowel signs. */}
+          <div className="mt-[clamp(0.6rem,2.2svh,1.5rem)] font-malayalam font-normal text-[clamp(1.1rem,2.7svh,1.65rem)] text-[#E3D28A]/90 max-w-[clamp(300px,85vw,42rem)] leading-relaxed">
           </div>
         </FadeContent>
 
