@@ -63,11 +63,11 @@ const spaceMono = Space_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://mudra-26.vercel.app"),
   title: {
-    default: "MUDRA 2026 — Toc H Institute of Science & Technology",
+    default: "MUDRA 2026 | Cultural Arts Festival at Toc H Institute",
     template: "%s | MUDRA 2026",
   },
   description:
-    "MUDRA 2026 is the official cultural arts festival of Toc H Institute of Science & Technology, Ernakulam. Celebrate കല സംസ്കാരിക കലോത്സവം — music, dance, fine arts, and more.",
+    "MUDRA 2026 is the cultural arts festival of Toc H Institute of Science & Technology, Ernakulam, Kerala. Explore music, dance, fine arts, competitions and more.",
   keywords: [
     "MUDRA 2026",
     "Toc H cultural fest",
