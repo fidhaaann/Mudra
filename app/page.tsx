@@ -197,9 +197,9 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Cultural Tagline — light Malayalam face. No letter-spacing:
-              tracking pulls apart Malayalam conjuncts and vowel signs. */}
-          <div className="mt-[clamp(0.6rem,2.2svh,1.5rem)] font-malayalam font-normal text-[clamp(1.1rem,2.7svh,1.65rem)] text-[#E3D28A]/90 max-w-[clamp(300px,85vw,42rem)] leading-relaxed">
+          {/* Cultural Tagline — ML_TT_Chithira HeavyBold Unicode */}
+          <div className="mt-[clamp(0.6rem,2.2svh,1.5rem)] font-malayalam font-normal text-[clamp(1.25rem,3.2svh,2rem)] text-[#E3D28A] max-w-[clamp(300px,85vw,46rem)] leading-relaxed text-center drop-shadow-[0_2px_12px_rgba(0,0,0,0.85)]">
+            <p lang="ml">കല സംസ്കാരിക കലോത്സവം.</p>
           </div>
         </FadeContent>
 

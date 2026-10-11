@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
-import { Cinzel, Noto_Sans_Malayalam, Outfit, Space_Mono } from "next/font/google";
+import { Anek_Malayalam, Cinzel, Noto_Sans_Malayalam, Outfit, Space_Mono } from "next/font/google";
 import "./globals.css";
 import { Navbar } from "@/components/navigation/Navbar";
 import { Footer } from "@/components/navigation/Footer";
@@ -13,6 +13,12 @@ const wardrum = localFont({
   variable: "--font-wardrum",
   display: "swap",
   weight: "700",
+});
+
+const chithira = localFont({
+  src: "./fonts/ML_TT_Chithira_HeavyBold.ttf",
+  variable: "--font-chithira",
+  display: "swap",
 });
 
 const cinzel = Cinzel({
@@ -29,12 +35,20 @@ const outfit = Outfit({
   display: "swap",
 });
 
-// Regular (400) Malayalam face for the home-page tagline. Not preloaded: it
-// is only used on the home page, so other pages never download it.
+// Primary Unicode Malayalam face (Google Fonts, self-hosted by Next.js)
 const notoSansMalayalam = Noto_Sans_Malayalam({
   variable: "--font-noto-sans-malayalam",
   subsets: ["malayalam"],
-  weight: ["400"],
+  weight: ["500", "600", "700", "800"],
+  display: "swap",
+  preload: true,
+});
+
+// Secondary bold boxy Malayalam display face
+const anekMalayalam = Anek_Malayalam({
+  variable: "--font-anek-malayalam",
+  subsets: ["malayalam"],
+  weight: ["700", "800"],
   display: "swap",
   preload: false,
 });
@@ -62,7 +76,7 @@ export default function RootLayout({
     <html
       lang="en"
       data-scroll-behavior="smooth"
-      className={`${wardrum.variable} ${cinzel.variable} ${outfit.variable} ${spaceMono.variable} ${notoSansMalayalam.variable} h-full antialiased`}
+      className={`${wardrum.variable} ${chithira.variable} ${cinzel.variable} ${outfit.variable} ${spaceMono.variable} ${notoSansMalayalam.variable} ${anekMalayalam.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-[#110B0B] text-[#E3D28A]">
         <LoadingScreen />

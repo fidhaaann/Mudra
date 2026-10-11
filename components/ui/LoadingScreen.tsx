@@ -299,6 +299,8 @@ function MusicHint({ reducedMotion }: { reducedMotion: boolean }) {
   );
 }
 
+const INTRO_SEEN_KEY = "mudra:intro-seen";
+
 // ─── main component ───────────────────────────────────────────────────────────
 
 export const LoadingScreen: React.FC = () => {
@@ -307,9 +309,22 @@ export const LoadingScreen: React.FC = () => {
   const [ready, setReady] = useState<boolean[]>(() => MUDRA_SRCS.map(() => false));
   const [step, setStep] = useState(0);
   const [visible, setVisible] = useState(true);
+  const [fastMode, setFastMode] = useState(false);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const previousOverflowRef = useRef("");
+
+  // Check if user has already seen the full intro in this session.
+  // Initialized in useEffect to ensure zero SSR/hydration mismatches.
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem(INTRO_SEEN_KEY) === "true") {
+        setFastMode(true);
+      }
+    } catch {
+      // sessionStorage unavailable
+    }
+  }, []);
 
   // Progress derived from step — no extra state
   const barProgress = useMemo(() => step / LAST_STEP, [step]);
@@ -361,9 +376,14 @@ export const LoadingScreen: React.FC = () => {
   // ── begin exit ────────────────────────────────────────────────────────────
   // Dispatches "mudra:loading-done" AT THE SAME MOMENT the overlay starts
   // fading out, so FadeContent's hero reveal runs CONCURRENTLY with the
-  // 400 ms exit fade — eliminating the black-screen gap between loading
-  // overlay gone and hero visible.
+  // exit fade — eliminating the black-screen gap between loading overlay
+  // gone and hero visible.
   const beginExit = useCallback(() => {
+    try {
+      sessionStorage.setItem(INTRO_SEEN_KEY, "true");
+    } catch {
+      // sessionStorage unavailable
+    }
     setVisible(false);
     document.body.style.overflow = previousOverflowRef.current;
     window.dispatchEvent(new CustomEvent("mudra:loading-done"));
@@ -372,6 +392,15 @@ export const LoadingScreen: React.FC = () => {
   // ── sequencer ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!visible) return;
+
+    // Fast-mode: On repeat visits / reloads, skip the multi-second animation
+    // and exit immediately after a brief pause so page transitions feel fast.
+    if (fastMode) {
+      timerRef.current = setTimeout(beginExit, 60);
+      return () => {
+        if (timerRef.current) clearTimeout(timerRef.current);
+      };
+    }
 
     const holdTime = shouldReduceMotion ? HOLD_MS * 1.5 : HOLD_MS;
 
@@ -402,7 +431,7 @@ export const LoadingScreen: React.FC = () => {
       clearInterval(poll);
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [step, ready, visible, shouldReduceMotion, advance, beginExit]);
+  }, [step, ready, visible, shouldReduceMotion, advance, beginExit, fastMode]);
 
   // ── active image ──────────────────────────────────────────────────────────
   const activeIdx = useMemo(
@@ -418,7 +447,7 @@ export const LoadingScreen: React.FC = () => {
           key="mudra-loading-overlay"
           initial={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: EXIT_MS / 1000, ease: "easeInOut" }}
+          transition={{ duration: fastMode ? 0.18 : EXIT_MS / 1000, ease: "easeInOut" }}
           className="fixed inset-0 z-9999 bg-[#110B0B] flex flex-col items-center justify-center gap-6 sm:gap-8 select-none overflow-hidden"
           aria-hidden="true"
         >
