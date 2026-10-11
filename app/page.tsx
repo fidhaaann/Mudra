@@ -88,52 +88,12 @@ export default function HomePage() {
     };
   }, []);
 
-  // ── Hero → next-section scroll depth transition ──────────────────────────
-  // The next section (standings) rises up from a slight yPercent offset.
-  // Pure GSAP transforms — zero React state per frame, no layout properties.
-  const heroRef = useRef<HTMLElement>(null);
-  const nextRef = useRef<HTMLElement>(null);
-  const nextContentRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    // Respect prefers-reduced-motion
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-
-    const hero = heroRef.current;
-    const nextContent = nextContentRef.current;
-    if (!hero || !nextContent) return;
-
-    const isMobile = window.innerWidth < 768;
-
-    // Initial state: set the next section slightly below its natural position.
-    // Animate only the standings contents so the page section itself stays in place.
-    gsap.set(nextContent, { yPercent: isMobile ? 2 : 4, willChange: "transform" });
-
-    // Standings contents rise up to their natural position as hero scrolls away
-    const nextTween = gsap.to(nextContent, {
-      yPercent: 0,
-      ease: "none",
-      scrollTrigger: {
-        trigger: hero,
-        start: "top top",
-        end: "bottom top",
-        scrub: 1.0,
-        invalidateOnRefresh: true,
-      },
-    });
-
-    return () => {
-      nextTween.scrollTrigger?.kill();
-      nextTween.kill();
-      gsap.set(nextContent, { clearProps: "yPercent,willChange" });
-    };
-  }, []);
 
   return (
     <div className="flex flex-col w-full">
       {/* 1. HERO SECTION — exactly 1 complete viewport with full-screen WebGL ripples */}
       <section
-        ref={heroRef}
         aria-label="MUDRA hero"
         // Opaque: lets the page dither background pause while this fills the viewport
         data-dither-occluder
@@ -208,8 +168,8 @@ export default function HomePage() {
       </section>
 
       {/* 2. POINTS TABLE / TEAM STANDINGS SECTION */}
-      <section id="team-standings" ref={nextRef} className="relative z-1 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-6 w-full min-w-0">
-        <div ref={nextContentRef} className="relative z-1 space-y-12">
+      <section id="team-standings" className="relative z-1 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-6 w-full min-w-0">
+        <div className="relative z-1 space-y-12">
           <div className="text-center space-y-2">
             <div className="font-display text-xs tracking-widest text-[#E02E0B] uppercase font-bold">
               MUDRA CHAMPIONSHIP

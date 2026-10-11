@@ -313,13 +313,21 @@ function DitherGridCanvas({
       draw();
     };
 
+    let elapsed = 0;
+    let prevNow = 0;
+
     const render = (now: number) => {
       animationFrame = requestAnimationFrame(render);
+      if (!prevNow) prevNow = now;
+      const delta = Math.min(0.05, (now - prevNow) / 1000);
+      prevNow = now;
+      elapsed += delta;
+
       // 4 ms tolerance absorbs rAF timestamp jitter so a 60 Hz display lands
       // on every second frame instead of occasionally skipping two.
       if (frameInterval && now - lastFrame < frameInterval - 4) return;
       lastFrame = now;
-      currentTime = now / 1000;
+      currentTime = elapsed;
       draw();
     };
 
@@ -327,9 +335,11 @@ function DitherGridCanvas({
       const shouldRun = !reducedMotion && !occludedRef.current && !document.hidden;
       if (shouldRun && !running) {
         running = true;
+        prevNow = 0;
         animationFrame = requestAnimationFrame(render);
       } else if (!shouldRun && running) {
         running = false;
+        prevNow = 0;
         cancelAnimationFrame(animationFrame);
       }
     };
@@ -344,9 +354,21 @@ function DitherGridCanvas({
     let refWidth = 0;
     let refHeight = 0;
     const layout = () => {
-      const nextRefWidth = Math.max(window.screen.width || 0, window.innerWidth);
-      const nextRefHeight = Math.max(window.screen.height || 0, window.innerHeight);
-      if (nextRefWidth === refWidth && nextRefHeight === refHeight) return;
+      const screenW = window.screen?.width || 0;
+      const screenH = window.screen?.height || 0;
+      const nextRefWidth = Math.max(screenW, window.innerWidth);
+      const nextRefHeight = Math.max(screenH, window.innerHeight);
+
+      // Prevent mobile toolbars or small scroll changes from re-centering/shifting the grid
+      if (
+        refWidth > 0 &&
+        refHeight > 0 &&
+        Math.abs(nextRefWidth - refWidth) < 50 &&
+        Math.abs(nextRefHeight - refHeight) < 180
+      ) {
+        return;
+      }
+
       refWidth = nextRefWidth;
       refHeight = nextRefHeight;
       root.style.left = `${-refWidth * PAINT_OVERSCAN}px`;
