@@ -61,10 +61,64 @@ const spaceMono = Space_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MUDRA",
-  description: "Official website for the MUDRA-Toc H Cultural Arts Competition.",
+  metadataBase: new URL("https://mudra-26.vercel.app"),
+  title: {
+    default: "MUDRA 2026 — Toc H Institute of Science & Technology",
+    template: "%s | MUDRA 2026",
+  },
+  description:
+    "MUDRA 2026 is the official cultural arts festival of Toc H Institute of Science & Technology, Ernakulam. Celebrate കല സംസ്കാരിക കലോത്സവം — music, dance, fine arts, and more.",
+  keywords: [
+    "MUDRA 2026",
+    "Toc H cultural fest",
+    "TIST cultural festival",
+    "Kerala college fest",
+    "malayalam cultural arts",
+    "കലോത്സവം",
+    "കല സംസ്കാരിക കലോത്സവം",
+    "MUDRA Toc H",
+  ],
+  authors: [{ name: "MUDRA Team, Toc H Institute of Science & Technology" }],
+  creator: "MUDRA Team, Toc H",
+  alternates: {
+    canonical: "https://mudra-26.vercel.app",
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_IN",
+    url: "https://mudra-26.vercel.app",
+    siteName: "MUDRA 2026",
+    title: "MUDRA 2026 — Toc H Cultural Arts Festival",
+    description:
+      "The official website for MUDRA 2026, the cultural arts competition of Toc H Institute of Science & Technology, Kerala.",
+    images: [
+      {
+        url: "/images/mudra-logo-dancer.png",
+        width: 994,
+        height: 748,
+        alt: "MUDRA 2026 — Toc H Cultural Festival Logo",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "MUDRA 2026 — Toc H Cultural Arts Festival",
+    description:
+      "The official website for MUDRA 2026, the cultural arts competition of Toc H Institute of Science & Technology, Kerala.",
+    images: ["/images/mudra-logo-dancer.png"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
   // Icons come from the file conventions: app/favicon.ico, app/icon.png,
-  // app/apple-icon.png (generated from the new MUDRA dancer logo).
+  // app/apple-icon.png (generated from the MUDRA dancer logo).
 };
 
 export default function RootLayout({
