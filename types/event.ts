@@ -4,7 +4,7 @@ export type ParticipantType = "solo" | "duo" | "group";
 
 export type PointsCategory = "solo" | "duo" | "group" | "offstage";
 
-export type EventStatus = "upcoming" | "live" | "completed";
+export type EventStatus = "upcoming" | "live" | "completed" | "closed";
 
 export interface Event {
   id: string;

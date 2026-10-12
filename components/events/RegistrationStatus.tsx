@@ -15,9 +15,9 @@ export type RegistrationState = "not-required" | "closed" | "open" | "pending";
  *
  *  1. "group" (every group event, Painting Relay included) → "not-required":
  *     each house fields one team; a link in the sheet is ignored.
- *  2. any status other than "upcoming" (live or completed) → "closed":
- *     registration shuts automatically when the organiser sets STATUS to live
- *     or completed, even if a Tally link exists.
+ *  2. "closed", "live", or "completed" → "closed": registration shuts when
+ *     the organiser sets STATUS to Closed, and keeps the existing automatic
+ *     close behavior for live and completed events.
  *  3. upcoming + valid REGISTRATION_LINK → "open": the Register button.
  *  4. upcoming without a link → "pending" ("Registration opens soon.").
  */
@@ -64,7 +64,7 @@ export function RegistrationStatus({ event }: { event: RegistrationEvent }) {
   if (state === "closed") {
     return (
       <div className="flex justify-center">
-        <RegistrationClosedLabel />
+        <RegisterButton registrationLink={event.registrationLink} closed />
       </div>
     );
   }

@@ -139,7 +139,9 @@ async function loadEvents(): Promise<Event[]> {
         venue:
           venueIdx >= 0 && row[venueIdx] ? String(row[venueIdx]).trim() : undefined,
         schedule: schedule || undefined,
-        status: (rawStatus === 'completed'
+        status: (rawStatus === 'closed'
+          ? 'closed'
+          : rawStatus === 'completed'
           ? 'completed'
           : rawStatus === 'finished'
           ? 'completed'

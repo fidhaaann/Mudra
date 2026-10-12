@@ -1046,7 +1046,8 @@ function parseEventRow(
     : rawPointsCat === "duo" ? "duo"
     : rawPointsCat === "offstage" ? "offstage"
     : "solo";
-  const status = rawStatus === "completed" ? "completed"
+  const status = rawStatus === "closed" ? "closed"
+    : rawStatus === "completed" ? "completed"
     : rawStatus === "live" ? "live"
     : "upcoming";
   return { id, pointsCategory, status };
@@ -1085,6 +1086,13 @@ test("unknown status defaults to upcoming", () => {
   const r = parseEventRow(testHeaders, row);
   assert.ok(r);
   assert.equal(r!.status, "upcoming");
+});
+
+test("closed status is recognised case-insensitively and with surrounding whitespace", () => {
+  const row = ["ev1", "Event 1", "on-stage", "solo", "  CLoSeD  "];
+  const r = parseEventRow(testHeaders, row);
+  assert.ok(r);
+  assert.equal(r!.status, "closed");
 });
 
 test("short row (fewer cells than headers) does not throw", () => {

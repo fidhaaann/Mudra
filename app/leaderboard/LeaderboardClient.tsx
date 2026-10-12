@@ -55,6 +55,7 @@ interface TooltipState {
   clientX: number;
   clientY: number;
   team: TeamLeaderboardEntry;
+  interaction: "pointer" | "touch";
 }
 
 /** Tooltip width in px — must match the rendered box so clamping is accurate. */
@@ -77,6 +78,7 @@ function TeamBarChart({ teams, hasResults }: ChartProps) {
   const [hovered, setHovered] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const touchInteractionRef = useRef(false);
   const isClient = useIsClient();
   const uid = useId();
 
@@ -128,45 +130,71 @@ function TeamBarChart({ teams, hasResults }: ChartProps) {
 
   /**
    * Compute a viewport-safe fixed position for the tooltip.
-   * Prefers placing the tooltip above the cursor; falls back to below.
+   * Pointer tooltips follow the cursor and prefer placing above it.
    * Clamps horizontally so it never escapes the viewport.
    */
-  function safeTooltipStyle(clientX: number, clientY: number): React.CSSProperties {
+  function safeTooltipStyle(tooltipState: TooltipState): React.CSSProperties {
+    if (tooltipState.interaction === "touch") {
+      return {
+        position: "fixed",
+        left: tooltipState.clientX,
+        top: tooltipState.clientY,
+        zIndex: 50,
+      };
+    }
+
     const vw = typeof window !== "undefined" ? window.innerWidth : 400;
     const vh = typeof window !== "undefined" ? window.innerHeight : 800;
 
     // Center horizontally on the cursor, then clamp to viewport edges
-    const rawLeft = clientX - TOOLTIP_W / 2;
+    const rawLeft = tooltipState.clientX - TOOLTIP_W / 2;
     const left = Math.max(8, Math.min(rawLeft, vw - TOOLTIP_W - 8));
 
     // Show above cursor if there's room, else below
     const top =
-      clientY - TOOLTIP_H - 12 > 0
-        ? clientY - TOOLTIP_H - 12
-        : Math.min(clientY + 16, vh - TOOLTIP_H - 8);
+      tooltipState.clientY - TOOLTIP_H - 12 > 0
+        ? tooltipState.clientY - TOOLTIP_H - 12
+        : Math.min(tooltipState.clientY + 16, vh - TOOLTIP_H - 8);
 
     return { position: "fixed", left, top, zIndex: 50 };
   }
 
-  // Touch support: synthesise a clientX/Y from touch coordinates
+  // Touch details stay in one chart-relative position instead of following the finger.
   function handleTouchStart(team: TeamLeaderboardEntry, e: React.TouchEvent<SVGGElement>) {
-    // No preventDefault(): React registers touchstart as a passive listener, so
-    // it was always ignored (and logged a console error on every tap).
     const touch = e.touches[0];
     if (touch) {
+      touchInteractionRef.current = true;
+      const rect = containerRef.current?.getBoundingClientRect();
+      const vw = window.innerWidth;
+      const left = rect
+        ? Math.max(8, Math.min(
+            rect.left + (rect.width - TOOLTIP_W) / 2,
+            vw - TOOLTIP_W - 8
+          ))
+        : Math.max(8, (vw - TOOLTIP_W) / 2);
+      const top = Math.max(
+        8,
+        rect ? rect.top - TOOLTIP_H - 8 : touch.clientY - TOOLTIP_H - 12
+      );
+
       setHovered(team.teamId);
-      setTooltip({ clientX: touch.clientX, clientY: touch.clientY, team });
+      setTooltip({ clientX: left, clientY: top, team, interaction: "touch" });
+      window.setTimeout(() => {
+        touchInteractionRef.current = false;
+      }, 500);
     }
   }
 
   function handleMouseEnter(team: TeamLeaderboardEntry, e: React.MouseEvent<SVGGElement>) {
+    if (touchInteractionRef.current) return;
     setHovered(team.teamId);
-    setTooltip({ clientX: e.clientX, clientY: e.clientY, team });
+    setTooltip({ clientX: e.clientX, clientY: e.clientY, team, interaction: "pointer" });
   }
 
   function handleMouseMove(team: TeamLeaderboardEntry, e: React.MouseEvent<SVGGElement>) {
+    if (touchInteractionRef.current) return;
     if (hovered === team.teamId) {
-      setTooltip({ clientX: e.clientX, clientY: e.clientY, team });
+      setTooltip({ clientX: e.clientX, clientY: e.clientY, team, interaction: "pointer" });
     }
   }
 
@@ -178,7 +206,10 @@ function TeamBarChart({ teams, hasResults }: ChartProps) {
   // Dismiss on scroll so tooltip never lingers out-of-sync
   useEffect(() => {
     if (!tooltip) return;
-    const dismiss = () => setTooltip(null);
+    const dismiss = () => {
+      setHovered(null);
+      setTooltip(null);
+    };
     window.addEventListener("scroll", dismiss, { passive: true });
     return () => window.removeEventListener("scroll", dismiss);
   }, [tooltip]);
@@ -196,7 +227,7 @@ function TeamBarChart({ teams, hasResults }: ChartProps) {
       {isClient && tooltip && createPortal(
         <div
           className="pointer-events-none"
-          style={safeTooltipStyle(tooltip.clientX, tooltip.clientY)}
+          style={safeTooltipStyle(tooltip)}
         >
           <div
             className="border border-[#E3D28A]/60 bg-[#110B0B] px-4 py-3 space-y-1"
@@ -317,11 +348,15 @@ function TeamBarChart({ teams, hasResults }: ChartProps) {
                 // For keyboard focus, anchor tooltip near the SVG element
                 const rect = (e.currentTarget as SVGElement).getBoundingClientRect();
                 setHovered(team.teamId);
-                setTooltip({ clientX: rect.left + rect.width / 2, clientY: rect.top, team });
+                setTooltip({
+                  clientX: rect.left + rect.width / 2,
+                  clientY: rect.top,
+                  team,
+                  interaction: "pointer",
+                });
               }}
               onBlur={handleLeave}
               onTouchStart={(e) => handleTouchStart(team, e)}
-              onTouchEnd={handleLeave}
               role="button"
               aria-label={`${team.teamName}: ${hasResults ? team.totalPoints + " points" : "no points yet"}`}
               tabIndex={0}

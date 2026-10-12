@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { InteractiveHoverLink } from "@/components/ui/interactive-hover-button";
+import { useEffect, useRef, useState } from "react";
+import { InteractiveHoverButton, InteractiveHoverLink } from "@/components/ui/interactive-hover-button";
 
 /**
  * Returns the event's registration URL if it is a usable http(s) link, else
@@ -41,11 +41,14 @@ const MOVE_TOLERANCE_PX = 10;
  */
 export function RegisterButton({
   registrationLink,
+  closed = false,
   className,
 }: {
   registrationLink: string | null | undefined;
+  closed?: boolean;
   className?: string;
 }) {
+  const [closedMessageVisible, setClosedMessageVisible] = useState(false);
   const ref = useRef<HTMLAnchorElement>(null);
   const hold = useRef({
     start: 0,
@@ -61,6 +64,28 @@ export function RegisterButton({
     const h = hold.current;
     return () => window.clearTimeout(h.readyTimer);
   }, []);
+
+  if (closed) {
+    return (
+      <div className="flex flex-col items-center gap-2">
+        <InteractiveHoverButton
+          text="REGISTRATION CLOSED"
+          aria-disabled="true"
+          className={[
+            "cursor-pointer border-[#6B6B6B] bg-[#3A3A3A] text-[#D1D1D1]",
+            "hover:border-[#6B6B6B] hover:bg-[#4A4A4A]",
+            className,
+          ].filter(Boolean).join(" ")}
+          onClick={() => setClosedMessageVisible(true)}
+        />
+        {closedMessageVisible && (
+          <p className="font-body text-xs text-[#E3D28A]" role="status">
+            Registration is closed.
+          </p>
+        )}
+      </div>
+    );
+  }
 
   const href = getRegistrationUrl(registrationLink);
   if (!href) return null;
