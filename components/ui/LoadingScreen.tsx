@@ -32,6 +32,9 @@ const LAST_STEP = SEQUENCE_INDICES.length - 1;
 const HOLD_MS = 185;
 const CROSSFADE_MS = 210;
 const FINAL_HOLD_MS = 240;
+const FAST_HOLD_MS = 55;
+const FAST_CROSSFADE_MS = 100;
+const FAST_FINAL_HOLD_MS = 90;
 const EXIT_MS = 400;
 const IMAGE_LOAD_TIMEOUT_MS = 1800;
 
@@ -233,19 +236,29 @@ const LOTUS_TREMBLE_CSS = `
 const MUDRA_REVEAL_CSS = `
 @keyframes mudra-image-reveal {
   0% {
-    opacity: 0;
-    transform: translate3d(1.2%, 0, 0) scale(0.982);
-    filter: blur(1.6px);
+    opacity: 1;
+    transform: translate3d(1.8%, 0, 0) scale(0.98);
+    filter: blur(2.2px);
   }
   55% {
     opacity: 0.92;
-    transform: translate3d(-0.2%, 0, 0) scale(1.003);
-    filter: blur(0.35px);
+    transform: translate3d(-0.25%, 0, 0) scale(1.003);
+    filter: blur(0.4px);
   }
   100% {
     opacity: 1;
     transform: translate3d(0, 0, 0) scale(1);
     filter: blur(0);
+  }
+}
+@keyframes mudra-image-exit {
+  0% {
+    opacity: 1;
+    filter: blur(0);
+  }
+  100% {
+    opacity: 0;
+    filter: blur(1px);
   }
 }
 `;
@@ -414,21 +427,15 @@ export const LoadingScreen: React.FC = () => {
   useEffect(() => {
     if (!visible) return;
 
-    // Fast-mode: On repeat visits / reloads, skip the multi-second animation
-    // and exit immediately after a brief pause so page transitions feel fast.
-    if (fastMode) {
-      timerRef.current = setTimeout(beginExit, 60);
-      return () => {
-        if (timerRef.current) clearTimeout(timerRef.current);
-      };
-    }
-
     if (!imagesReady) return;
 
-    const holdTime = shouldReduceMotion ? 120 : HOLD_MS;
+    const holdTime = fastMode
+      ? shouldReduceMotion ? 35 : FAST_HOLD_MS
+      : shouldReduceMotion ? 120 : HOLD_MS;
+    const finalHold = fastMode ? FAST_FINAL_HOLD_MS : FINAL_HOLD_MS;
 
     if (step >= LAST_STEP) {
-      timerRef.current = setTimeout(beginExit, holdTime + FINAL_HOLD_MS);
+      timerRef.current = setTimeout(beginExit, holdTime + finalHold);
       return () => { if (timerRef.current) clearTimeout(timerRef.current); };
     }
 
@@ -443,6 +450,7 @@ export const LoadingScreen: React.FC = () => {
     () => SEQUENCE_INDICES[Math.min(step, LAST_STEP)],
     [step]
   );
+  const revealDuration = fastMode ? FAST_CROSSFADE_MS : CROSSFADE_MS;
 
   // ── render ────────────────────────────────────────────────────────────────
   return (
@@ -468,6 +476,8 @@ export const LoadingScreen: React.FC = () => {
           >
             {MUDRA_SRCS.map((src, i) => {
               const isActive = i === activeIdx;
+              const previousIdx = step > 0 ? SEQUENCE_INDICES[step - 1] : -1;
+              const isPrevious = i === previousIdx && !isActive;
               return (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -481,15 +491,20 @@ export const LoadingScreen: React.FC = () => {
                     width: "100%",
                     height: "100%",
                     objectFit: "contain",
-                    opacity: isActive ? 1 : 0,
+                    opacity: isActive || isPrevious ? 1 : 0,
                     transform: isActive ? "translate3d(0, 0, 0) scale(1)" : "translate3d(0, 0, 0) scale(0.985)",
-                    filter: shouldReduceMotion ? "none" : undefined,
+                    filter: shouldReduceMotion || (!isActive && !isPrevious) ? "none" : undefined,
                     transition: shouldReduceMotion
                       ? "none"
-                      : `opacity ${CROSSFADE_MS}ms ease-out`,
-                    animation: isActive && !shouldReduceMotion
-                      ? `mudra-image-reveal ${CROSSFADE_MS}ms cubic-bezier(0.22, 1, 0.36, 1) both`
-                      : "none",
+                      : `opacity ${revealDuration}ms ease-out`,
+                    animation: shouldReduceMotion
+                      ? "none"
+                      : isActive
+                        ? `mudra-image-reveal ${revealDuration}ms cubic-bezier(0.22, 1, 0.36, 1) both`
+                        : isPrevious
+                          ? `mudra-image-exit ${revealDuration}ms ease-out both`
+                          : "none",
+                    zIndex: isActive ? 2 : isPrevious ? 1 : 0,
                     pointerEvents: "none",
                     userSelect: "none",
                     willChange: isActive ? "opacity, transform, filter" : "auto",

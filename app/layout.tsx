@@ -132,7 +132,10 @@ export default function RootLayout({
       data-scroll-behavior="smooth"
       className={`${wardrum.variable} ${chithira.variable} ${cinzel.variable} ${outfit.variable} ${spaceMono.variable} ${notoSansMalayalam.variable} ${anekMalayalam.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-[#110B0B] text-[#E3D28A]">
+      <body
+        suppressHydrationWarning
+        className="min-h-full flex flex-col bg-[#110B0B] text-[#E3D28A]"
+      >
         <LoadingScreen />
         {/* Single persistent audio instance; layouts don't remount on navigation */}
         <BackgroundMusic />
