@@ -23,7 +23,7 @@
 import { memo, useEffect, useRef, useSyncExternalStore, type CSSProperties } from "react";
 import { gsap } from "gsap";
 import { cn } from "@/lib/utils";
-import { getTeamWordmarks, type Wordmark } from "@/lib/team-wordmarks";
+import { getTeamWordmarks, TEAM_WORDMARKS, type Wordmark } from "@/lib/team-wordmarks";
 
 type Lang = "en" | "ml";
 
@@ -31,6 +31,25 @@ const INTERVAL_MS = 3000;
 const DURATION = 0.45;
 const STAGGER = 0.03;
 const EASE = "power3.out";
+
+function preloadWordmark(src: string): Promise<void> {
+  const img = new Image();
+  img.src = src;
+  return img.decode().catch(() => undefined);
+}
+
+let wordmarksReady: Promise<void> | null = null;
+
+function getWordmarksReady(): Promise<void> {
+  if (wordmarksReady === null) {
+    wordmarksReady = Promise.all(
+      Object.values(TEAM_WORDMARKS)
+        .flatMap((marks) => (marks ? [marks.english.src, marks.malayalam.src] : []))
+        .map(preloadWordmark)
+    ).then(() => undefined);
+  }
+  return wordmarksReady;
+}
 
 // ─── shared language clock ───────────────────────────────────────────────────
 
@@ -100,6 +119,8 @@ export interface TeamNameLanguageTransitionProps {
   align?: "start" | "center";
   /** Number of vertical shuffle strips. */
   strips?: number;
+  /** Transition duration in seconds for artwork-specific visual tuning. */
+  animationDuration?: number;
   /** Show the English mark only, without the language animation. */
   static?: boolean;
   className?: string;
@@ -113,6 +134,7 @@ function TeamNameLanguageTransition({
   height = 1.3,
   align = "start",
   strips = 10,
+  animationDuration = DURATION,
   static: isStatic = false,
   className,
 }: TeamNameLanguageTransitionProps) {
@@ -158,16 +180,8 @@ function TeamNameLanguageTransition({
     let ready = false;
     let tl: gsap.core.Timeline | null = null;
 
-    // Only animate once both marks are decoded, so no strip shows a blank cell.
-    let cancelled = false;
-    Promise.all(
-      [english.src, malayalam.src].map((src) => {
-        const img = new Image();
-        img.src = src;
-        return img.decode().catch(() => undefined);
-      })
-    ).then(() => {
-      if (!cancelled) ready = true;
+    getWordmarksReady().then(() => {
+      ready = true;
     });
 
     const io = new IntersectionObserver(([entry]) => {
@@ -197,7 +211,7 @@ function TeamNameLanguageTransition({
       tl.fromTo(
         tracks,
         { yPercent: 0 },
-        { yPercent: -50, duration: DURATION, ease: EASE, stagger: STAGGER, force3D: true }
+        { yPercent: -50, duration: animationDuration, ease: EASE, stagger: STAGGER, force3D: true }
       );
     };
 
@@ -205,15 +219,13 @@ function TeamNameLanguageTransition({
     snap(currentLang);
     shown = currentLang;
     const unsubscribe = subscribeClock(go);
-
     return () => {
-      cancelled = true;
       unsubscribe();
       io.disconnect();
       tl?.kill();
       gsap.set(tracks, { clearProps: "transform" });
     };
-  }, [reducedMotion, isStatic, english.src, malayalam.src]);
+  }, [reducedMotion, isStatic, english.src, malayalam.src, animationDuration]);
 
   const vars = {
     "--en-img": `url("${english.src}")`,

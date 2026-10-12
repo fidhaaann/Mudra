@@ -17,6 +17,8 @@ export interface TeamWordmarks {
   malayalamName: string;
   english: Wordmark;
   malayalam: Wordmark;
+  /** Optional transition duration for artwork with wider visual lettering. */
+  animationDuration?: number;
 }
 
 /**
@@ -24,8 +26,8 @@ export interface TeamWordmarks {
  * The WebPs are tight, transparent crops of the black-background JPG masters
  * in the same folders, so they sit on any MUDRA surface without a black box.
  *
- * Teams without artwork (currently MBA) are absent; TeamWordmark falls back
- * to the plain team name for them.
+ * TeamWordmark falls back to the plain team name only when a team has no
+ * registered artwork.
  */
 export const TEAM_WORDMARKS: Partial<Record<TeamId, TeamWordmarks>> = {
   raaga: {
@@ -51,6 +53,13 @@ export const TEAM_WORDMARKS: Partial<Record<TeamId, TeamWordmarks>> = {
     malayalamName: "ഉത്സവ്",
     english: { src: "/images/utsav/utsavE.webp", aspect: 444 / 160 },
     malayalam: { src: "/images/utsav/utsavM.webp", aspect: 300 / 160, body: [43 / 160, 128 / 160] },
+  },
+  mba: {
+    englishName: "MBA",
+    malayalamName: "എംബിഎ",
+    english: { src: "/images/MBA/MBAE.webp", aspect: 371 / 160 },
+    malayalam: { src: "/images/MBA/MBAM.webp", aspect: 445 / 160, body: [44 / 160, 1] },
+    animationDuration: 0.6,
   },
 };
 
