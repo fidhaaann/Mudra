@@ -301,6 +301,16 @@ function MusicHint({ reducedMotion }: { reducedMotion: boolean }) {
 
 const INTRO_SEEN_KEY = "mudra:intro-seen";
 
+const getIntroSeen = () => {
+  try {
+    return sessionStorage.getItem(INTRO_SEEN_KEY) === "true";
+  } catch {
+    return false;
+  }
+};
+const getIntroSeenServer = () => false;
+const subscribeIntroSeen = () => () => {};
+
 // ─── main component ───────────────────────────────────────────────────────────
 
 export const LoadingScreen: React.FC = () => {
@@ -309,22 +319,14 @@ export const LoadingScreen: React.FC = () => {
   const [ready, setReady] = useState<boolean[]>(() => MUDRA_SRCS.map(() => false));
   const [step, setStep] = useState(0);
   const [visible, setVisible] = useState(true);
-  const [fastMode, setFastMode] = useState(false);
+  const fastMode = useSyncExternalStore(
+    subscribeIntroSeen,
+    getIntroSeen,
+    getIntroSeenServer
+  );
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const previousOverflowRef = useRef("");
-
-  // Check if user has already seen the full intro in this session.
-  // Initialized in useEffect to ensure zero SSR/hydration mismatches.
-  useEffect(() => {
-    try {
-      if (sessionStorage.getItem(INTRO_SEEN_KEY) === "true") {
-        setFastMode(true);
-      }
-    } catch {
-      // sessionStorage unavailable
-    }
-  }, []);
 
   // Progress derived from step — no extra state
   const barProgress = useMemo(() => step / LAST_STEP, [step]);

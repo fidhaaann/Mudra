@@ -62,12 +62,16 @@ export const Navbar: React.FC = () => {
 
   useMotionValueEvent(scrollY, "change", (latest) => {
     const previous = scrollY.getPrevious() ?? 0;
-    // Hide navbar when scrolling down past 60px
-    if (latest > previous && latest > 60) {
+    const diff = latest - previous;
+    // Always show navbar near the top of the page
+    if (latest <= 60) {
+      setHidden(false);
+    } else if (diff > 8) {
+      // Hide navbar when scrolling down with an intentional movement
       setHidden(true);
       setMobileMenuOpen(false);
-    } else if (latest < previous) {
-      // Show navbar when scrolling up
+    } else if (diff < -8) {
+      // Show navbar when scrolling up with an intentional movement
       setHidden(false);
     }
   });
@@ -101,9 +105,13 @@ export const Navbar: React.FC = () => {
   }, [mobileMenuOpen]);
 
   // Close drawer upon route navigation
-  useEffect(() => {
-    setMobileMenuOpen(false);
-  }, [pathname]);
+  const [prevPathname, setPrevPathname] = useState(pathname);
+  if (prevPathname !== pathname) {
+    setPrevPathname(pathname);
+    if (mobileMenuOpen) {
+      setMobileMenuOpen(false);
+    }
+  }
 
   return (
     <>

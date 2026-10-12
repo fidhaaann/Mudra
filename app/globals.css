@@ -46,10 +46,9 @@ html {
 body {
   background-color: #110B0B;
   color: #E3D28A;
-  min-height: 100vh;
-  min-height: 100dvh;
+  min-height: 100%;
   position: relative;
-  overscroll-behavior: none;
+  overscroll-behavior-y: none;
   overflow-x: clip;
 }
 

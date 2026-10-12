@@ -260,9 +260,19 @@ function DitherGridCanvas({
     const gapContext = gapCanvas.getContext("2d");
     if (!context || !gapContext) return;
 
-    const reducedMotion = window.matchMedia(
+    const reducedMotionMql = window.matchMedia(
       "(prefers-reduced-motion: reduce)"
-    ).matches;
+    );
+    const mobileMql = window.matchMedia(
+      "(max-width: 767px), (pointer: coarse) and (max-width: 1023px)"
+    );
+
+    // isMobileDevice / isStatic are re-evaluated on every call so that
+    // orientation changes and window resizes across the breakpoint are handled
+    // correctly without restarting the whole effect.
+    const isMobileDevice = () => mobileMql.matches;
+    const isStatic = () => reducedMotionMql.matches || mobileMql.matches;
+
     const tier = getPerfTier();
     const frameInterval = tier === "low" ? 1000 / 30 : 0;
     const pixelated = supportsPixelated();
@@ -332,7 +342,9 @@ function DitherGridCanvas({
     };
 
     const sync = () => {
-      const shouldRun = !reducedMotion && !occludedRef.current && !document.hidden;
+      // Re-evaluate live: orientation/resize crossing the breakpoint or the
+      // user toggling reduced-motion changes isStatic() without remounting.
+      const shouldRun = !isStatic() && !occludedRef.current && !document.hidden;
       if (shouldRun && !running) {
         running = true;
         prevNow = 0;
@@ -364,7 +376,7 @@ function DitherGridCanvas({
         refWidth > 0 &&
         refHeight > 0 &&
         Math.abs(nextRefWidth - refWidth) < 50 &&
-        Math.abs(nextRefHeight - refHeight) < 180
+        (isMobileDevice() || Math.abs(nextRefHeight - refHeight) < 180)
       ) {
         return;
       }
@@ -381,6 +393,10 @@ function DitherGridCanvas({
     observer.observe(root);
     window.addEventListener("resize", layout, { passive: true });
     document.addEventListener("visibilitychange", sync);
+    // Re-evaluate animation mode when the user crosses the mobile breakpoint
+    // or toggles reduced-motion (e.g. OS accessibility setting) at runtime.
+    reducedMotionMql.addEventListener("change", sync);
+    mobileMql.addEventListener("change", sync);
     layout();
     resize();
     sync();
@@ -391,6 +407,8 @@ function DitherGridCanvas({
       observer.disconnect();
       window.removeEventListener("resize", layout);
       document.removeEventListener("visibilitychange", sync);
+      reducedMotionMql.removeEventListener("change", sync);
+      mobileMql.removeEventListener("change", sync);
       syncRef.current = () => {};
     };
   }, [contained, startAfterHero]);
@@ -437,6 +455,8 @@ function DitherGridCanvas({
         height: `${ELEMENT_SCALE * 100}%`,
         top: `-${overscan}`,
         left: `-${overscan}`,
+        transform: "translate3d(0, 0, 0)",
+        backfaceVisibility: "hidden",
       }}
     >
       <canvas ref={cellsRef} className="absolute" />

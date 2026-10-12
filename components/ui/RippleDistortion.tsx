@@ -395,9 +395,13 @@ const RippleDistortion: React.FC<RippleDistortionProps> = ({
     let previousX = 0;
     let previousY = 0;
 
+    // ── mouse / stylus hover ───────────────────────────────────────────────
+    // Only runs for non-touch pointers; touch drags are scroll gestures and
+    // must never produce ripple waves (would distort the hero on every scroll).
     const onMove = (event: PointerEvent) => {
       const cfg = configRef.current;
       if (!cfg.enabled || reduceMotion || cfg.trigger === "click") return;
+      if (event.pointerType === "touch") return; // scroll gesture — skip
       const point = localPoint(event.clientX, event.clientY);
       if (!point) return;
       const step = Math.max(1, cfg.spacing);
@@ -408,16 +412,64 @@ const RippleDistortion: React.FC<RippleDistortionProps> = ({
       }
     };
 
+    // ── tap / click detection ──────────────────────────────────────────────
+    // For touch: fire a wave only on confirmed tap (pointer-up after < 10 px
+    // of movement). If the pointer moves beyond the threshold the gesture is a
+    // scroll and we silently drop it. For mouse/stylus: fire immediately on
+    // pointer-down (original behaviour).
+    const TAP_THRESHOLD = 10; // px — movement beyond this cancels the tap
+    let tapDownX = 0;
+    let tapDownY = 0;
+    let tapPendingId = -1; // pointerId of an in-flight touch tap, or -1
+
     const onDown = (event: PointerEvent) => {
+      const cfg = configRef.current;
+      if (!cfg.enabled || reduceMotion || cfg.trigger === "hover") return;
+
+      if (event.pointerType !== "touch") {
+        // Mouse / stylus — fire immediately (unchanged desktop behaviour).
+        const point = localPoint(event.clientX, event.clientY);
+        if (!point) return;
+        setNewWave(point[0], point[1], cfg.clickStrength);
+        return;
+      }
+
+      // Touch — record start position; defer wave until up/cancel.
+      tapDownX = event.clientX;
+      tapDownY = event.clientY;
+      tapPendingId = event.pointerId;
+    };
+
+    const onTouchMove = (event: PointerEvent) => {
+      // If the touch has moved beyond the threshold it is a scroll — cancel.
+      if (event.pointerType !== "touch" || event.pointerId !== tapPendingId) return;
+      const dx = event.clientX - tapDownX;
+      const dy = event.clientY - tapDownY;
+      if (Math.abs(dx) > TAP_THRESHOLD || Math.abs(dy) > TAP_THRESHOLD) {
+        tapPendingId = -1; // drop the tap
+      }
+    };
+
+    const onUp = (event: PointerEvent) => {
+      if (event.pointerType !== "touch" || event.pointerId !== tapPendingId) return;
+      tapPendingId = -1;
       const cfg = configRef.current;
       if (!cfg.enabled || reduceMotion || cfg.trigger === "hover") return;
       const point = localPoint(event.clientX, event.clientY);
       if (!point) return;
-      setNewWave(point[0], point[1], Math.max(1, cfg.clickStrength));
+      // Confirmed tap — fire a normal-strength wave.
+      setNewWave(point[0], point[1], cfg.clickStrength);
+    };
+
+    const onCancel = (event: PointerEvent) => {
+      if (event.pointerId === tapPendingId) tapPendingId = -1;
     };
 
     mount.addEventListener("pointermove", onMove, { passive: true });
+    mount.addEventListener("pointermove", onTouchMove, { passive: true });
     mount.addEventListener("pointerdown", onDown, { passive: true });
+    mount.addEventListener("pointerup", onUp, { passive: true });
+    mount.addEventListener("pointercancel", onCancel, { passive: true });
 
     // ── render scheduling ─────────────────────────────────────────────────
     // The frame only changes while ripples are alive or after a resize /
@@ -502,7 +554,11 @@ const RippleDistortion: React.FC<RippleDistortionProps> = ({
       io.disconnect();
       ro.disconnect();
       mount.removeEventListener("pointermove", onMove);
+      mount.removeEventListener("pointermove", onTouchMove);
       mount.removeEventListener("pointerdown", onDown);
+      mount.removeEventListener("pointerup", onUp);
+      mount.removeEventListener("pointercancel", onCancel);
+      tapPendingId = -1;
       uniformsRef.current = null;
       if (canvas.parentNode === mount) mount.removeChild(canvas);
       const ext = gl.getExtension("WEBGL_lose_context");

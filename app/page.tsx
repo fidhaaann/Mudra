@@ -1,18 +1,14 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import dynamic from "next/dynamic";
-import { gsap } from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
 import FadeContent from "@/components/ui/FadeContent";
 import { getTeamColor } from "@/lib/team-colors";
 import { TeamWordmark } from "@/components/ui/TeamNameLanguageTransition";
 import { StandingsPodium, StandingsPodiumSkeleton } from "@/components/ui/StandingsPodium";
 import { AwardWinners } from "@/components/ui/AwardWinners";
 import { LeaderboardResponse, TeamLeaderboardEntry } from "@/types/leaderboard";
-
-gsap.registerPlugin(ScrollTrigger);
 
 const RippleDistortion = dynamic(
   () => import("@/components/ui/RippleDistortion"),
@@ -24,19 +20,48 @@ export default function HomePage() {
   const [leaderboardLoading, setLeaderboardLoading] = useState(true);
   const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
 
-  const loadLeaderboard = async () => {
+  // Holds the AbortController for any in-flight retry so that starting a new
+  // retry or navigating away cancels the previous request cleanly.
+  const abortRetryRef = useRef<AbortController | null>(null);
+
+  const handleRetry = useCallback(async () => {
+    // Cancel any in-flight retry before starting a new one.
+    abortRetryRef.current?.abort();
+    const controller = new AbortController();
+    abortRetryRef.current = controller;
+
     try {
       setLeaderboardLoading(true);
       setLeaderboardError(null);
-      const response = await fetch("/api/leaderboard");
+      const response = await fetch("/api/leaderboard", {
+        signal: controller.signal,
+      });
       if (!response.ok) throw new Error("Unable to load live standings.");
-      setLeaderboard(await response.json() as LeaderboardResponse);
+      const data = (await response.json()) as LeaderboardResponse;
+      setLeaderboard(data);
     } catch (error) {
-      setLeaderboardError(error instanceof Error ? error.message : "Unable to load live standings.");
+      // AbortError means the request was intentionally cancelled (navigation
+      // away or a newer retry started) — do not show a false error banner.
+      if (error instanceof Error && error.name === "AbortError") return;
+      setLeaderboardError(
+        error instanceof Error ? error.message : "Unable to load live standings."
+      );
     } finally {
-      setLeaderboardLoading(false);
+      // Only clear loading if this controller is still the current one
+      // (i.e. it was not superseded by another retry).
+      if (abortRetryRef.current === controller) {
+        setLeaderboardLoading(false);
+        abortRetryRef.current = null;
+      }
     }
-  };
+  }, []);
+
+  // Cancel any in-flight retry when the component unmounts (route change).
+  useEffect(() => {
+    return () => {
+      abortRetryRef.current?.abort();
+    };
+  }, []);
 
   useEffect(() => {
     let ignore = false;
@@ -44,21 +69,25 @@ export default function HomePage() {
       try {
         const response = await fetch("/api/leaderboard");
         if (!response.ok) throw new Error("Unable to load live standings.");
-        const data = await response.json() as LeaderboardResponse;
+        const data = (await response.json()) as LeaderboardResponse;
         if (!ignore) {
           setLeaderboard(data);
           setLeaderboardError(null);
         }
       } catch (error) {
         if (!ignore) {
-          setLeaderboardError(error instanceof Error ? error.message : "Unable to load live standings.");
+          setLeaderboardError(
+            error instanceof Error ? error.message : "Unable to load live standings."
+          );
         }
       } finally {
         if (!ignore) setLeaderboardLoading(false);
       }
     }
     fetchLeaderboard();
-    return () => { ignore = true; };
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   const standings: TeamLeaderboardEntry[] = leaderboard?.teams ?? [];
@@ -190,7 +219,7 @@ export default function HomePage() {
               <p className="font-body text-xs sm:text-sm text-[#E3D28A]/80">{leaderboardError}</p>
               <button
                 type="button"
-                onClick={loadLeaderboard}
+                onClick={handleRetry}
                 className="inline-flex px-4 py-2 bg-[#E02E0B] text-[#E3D28A] font-display text-xs uppercase tracking-wider font-bold hover:bg-[#941108] transition-colors"
               >
                 TRY AGAIN

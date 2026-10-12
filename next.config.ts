@@ -57,6 +57,9 @@ const SECURITY_HEADERS = [
 const nextConfig: NextConfig = {
   transpilePackages: ["ogl"],
   poweredByHeader: false,
+  images: {
+    formats: ["image/avif", "image/webp"],
+  },
   async headers() {
     return [
       { source: "/:path*", headers: SECURITY_HEADERS },
