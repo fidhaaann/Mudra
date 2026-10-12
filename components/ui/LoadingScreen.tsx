@@ -29,24 +29,43 @@ const SEQUENCE_INDICES: number[] = [0, 2, 4, 1, 5, 3, 0, 4, 2, 5];
 const LAST_STEP = SEQUENCE_INDICES.length - 1;
 
 // ─── timing (ms) ─────────────────────────────────────────────────────────────
-const HOLD_MS = 210;
-const CROSSFADE_MS = 130;
-const FINAL_HOLD_MS = 300;
+const HOLD_MS = 185;
+const CROSSFADE_MS = 210;
+const FINAL_HOLD_MS = 240;
 const EXIT_MS = 400;
+const IMAGE_LOAD_TIMEOUT_MS = 1800;
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
-function decodeImage(src: string): Promise<void> {
+function decodeImage(src: string, signal: AbortSignal): Promise<void> {
   return new Promise<void>((resolve) => {
     const img = new window.Image();
+    let settled = false;
+    const settle = () => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      signal.removeEventListener("abort", settle);
+      img.onload = null;
+      img.onerror = null;
+      resolve();
+    };
+    const timeout = window.setTimeout(settle, IMAGE_LOAD_TIMEOUT_MS);
+
+    if (signal.aborted) {
+      settle();
+      return;
+    }
+
+    signal.addEventListener("abort", settle, { once: true });
     img.onload = () => {
       if (img.decode) {
-        img.decode().then(resolve, resolve);
+        img.decode().then(settle, settle);
       } else {
-        resolve();
+        settle();
       }
     };
-    img.onerror = () => resolve();
+    img.onerror = settle;
     img.src = src;
   });
 }
@@ -211,6 +230,26 @@ const LOTUS_TREMBLE_CSS = `
 }
 `;
 
+const MUDRA_REVEAL_CSS = `
+@keyframes mudra-image-reveal {
+  0% {
+    opacity: 0;
+    transform: translate3d(1.2%, 0, 0) scale(0.982);
+    filter: blur(1.6px);
+  }
+  55% {
+    opacity: 0.92;
+    transform: translate3d(-0.2%, 0, 0) scale(1.003);
+    filter: blur(0.35px);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: blur(0);
+  }
+}
+`;
+
 // Oversized so sub-degree rotation never exposes an uncovered edge.
 const LOTUS_MOTION_BOX: React.CSSProperties = { position: "absolute", inset: "-16px" };
 
@@ -316,7 +355,7 @@ const subscribeIntroSeen = () => () => {};
 export const LoadingScreen: React.FC = () => {
   const shouldReduceMotion = useReducedMotion() ?? false;
 
-  const [ready, setReady] = useState<boolean[]>(() => MUDRA_SRCS.map(() => false));
+  const [imagesReady, setImagesReady] = useState(false);
   const [step, setStep] = useState(0);
   const [visible, setVisible] = useState(true);
   const fastMode = useSyncExternalStore(
@@ -329,45 +368,25 @@ export const LoadingScreen: React.FC = () => {
   const previousOverflowRef = useRef("");
 
   // Progress derived from step — no extra state
-  const barProgress = useMemo(() => step / LAST_STEP, [step]);
+  const barProgress = step / LAST_STEP;
 
-  // ── batch-decode all 6 images ─────────────────────────────────────────────
+  // ── decode all images once before the reveal ──────────────────────────────
   useEffect(() => {
     previousOverflowRef.current = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     let cancelled = false;
+    const controller = new AbortController();
 
-    Promise.all(MUDRA_SRCS.map(decodeImage)).then(() => {
-      if (!cancelled) setReady(MUDRA_SRCS.map(() => true));
+    Promise.all(MUDRA_SRCS.map((src) => decodeImage(src, controller.signal))).then(() => {
+      if (!cancelled) setImagesReady(true);
     });
 
     return () => {
       cancelled = true;
+      controller.abort();
       document.body.style.overflow = previousOverflowRef.current;
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, []);
-
-  // ── per-image decode (belt-and-suspenders) ────────────────────────────────
-  useEffect(() => {
-    const cleanups: (() => void)[] = [];
-    MUDRA_SRCS.forEach((src, i) => {
-      if (ready[i]) return;
-      const img = new window.Image();
-      const onReady = () =>
-        setReady((prev) => {
-          if (prev[i]) return prev;
-          const n = [...prev];
-          n[i] = true;
-          return n;
-        });
-      img.onload = () => { if (img.decode) { img.decode().then(onReady, onReady); } else { onReady(); } };
-      img.onerror = () => onReady();
-      img.src = src;
-      cleanups.push(() => { img.onload = null; img.onerror = null; });
-    });
-    return () => cleanups.forEach((f) => f());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── advance step ──────────────────────────────────────────────────────────
@@ -404,36 +423,20 @@ export const LoadingScreen: React.FC = () => {
       };
     }
 
-    const holdTime = shouldReduceMotion ? HOLD_MS * 1.5 : HOLD_MS;
+    if (!imagesReady) return;
+
+    const holdTime = shouldReduceMotion ? 120 : HOLD_MS;
 
     if (step >= LAST_STEP) {
       timerRef.current = setTimeout(beginExit, holdTime + FINAL_HOLD_MS);
       return () => { if (timerRef.current) clearTimeout(timerRef.current); };
     }
 
-    const nextImgIdx = SEQUENCE_INDICES[step + 1];
-
-    const scheduleAdvance = () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(advance, holdTime);
-    };
-
-    if (ready[nextImgIdx]) {
-      scheduleAdvance();
-      return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-    }
-
-    const poll = setInterval(() => {
-      if (ready[nextImgIdx]) {
-        clearInterval(poll);
-        scheduleAdvance();
-      }
-    }, 16);
+    timerRef.current = setTimeout(advance, holdTime);
     return () => {
-      clearInterval(poll);
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [step, ready, visible, shouldReduceMotion, advance, beginExit, fastMode]);
+  }, [step, imagesReady, visible, shouldReduceMotion, advance, beginExit, fastMode]);
 
   // ── active image ──────────────────────────────────────────────────────────
   const activeIdx = useMemo(
@@ -453,6 +456,7 @@ export const LoadingScreen: React.FC = () => {
           className="fixed inset-0 z-9999 bg-[#110B0B] flex flex-col items-center justify-center gap-6 sm:gap-8 select-none overflow-hidden"
           aria-hidden="true"
         >
+          <style>{MUDRA_REVEAL_CSS}</style>
           <LotusBackdrop />
 
           <div
@@ -464,7 +468,6 @@ export const LoadingScreen: React.FC = () => {
           >
             {MUDRA_SRCS.map((src, i) => {
               const isActive = i === activeIdx;
-              const isVisible = ready[i];
               return (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -478,14 +481,18 @@ export const LoadingScreen: React.FC = () => {
                     width: "100%",
                     height: "100%",
                     objectFit: "contain",
-                    opacity: isVisible && isActive ? 1 : 0,
-                    transform: isActive ? "scale(1)" : "scale(0.97)",
+                    opacity: isActive ? 1 : 0,
+                    transform: isActive ? "translate3d(0, 0, 0) scale(1)" : "translate3d(0, 0, 0) scale(0.985)",
+                    filter: shouldReduceMotion ? "none" : undefined,
                     transition: shouldReduceMotion
-                      ? "opacity 0ms"
-                      : `opacity ${CROSSFADE_MS}ms ease-in-out, transform ${CROSSFADE_MS}ms ease-in-out`,
+                      ? "none"
+                      : `opacity ${CROSSFADE_MS}ms ease-out`,
+                    animation: isActive && !shouldReduceMotion
+                      ? `mudra-image-reveal ${CROSSFADE_MS}ms cubic-bezier(0.22, 1, 0.36, 1) both`
+                      : "none",
                     pointerEvents: "none",
                     userSelect: "none",
-                    willChange: isActive ? "opacity, transform" : "auto",
+                    willChange: isActive ? "opacity, transform, filter" : "auto",
                   }}
                 />
               );
